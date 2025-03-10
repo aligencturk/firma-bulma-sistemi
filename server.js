@@ -22,7 +22,9 @@ app.use(helmet({
                 "'unsafe-eval'",
                 'https://maps.googleapis.com',
                 'https://cdn.jsdelivr.net',
-                'https://cdn.quilljs.com'
+                'https://cdn.quilljs.com',
+                'https://*.supabase.co',
+                'https://*.supabase.in'
             ],
             styleSrc: [
                 "'self'",
@@ -36,7 +38,9 @@ app.use(helmet({
                 'https://maps.googleapis.com',
                 'https://*.firebaseio.com',
                 'wss://*.firebaseio.com',
-                'https://*.googleapis.com'
+                'https://*.googleapis.com',
+                'https://*.supabase.co',
+                'https://*.supabase.in'
             ],
             frameSrc: ["'self'", 'https://wa.me'],
             fontSrc: ["'self'", 'data:', 'https://cdn.jsdelivr.net']
