@@ -122,4 +122,4 @@ Bu proje MIT lisansı altında lisanslanmıştır.
 
 ## İletişim
 
-Sorularınız veya önerileriniz için [GitHub Issues](https://github.com/kullaniciadi/firma-bulma-sistemi/issues) üzerinden iletişime geçebilirsiniz. 
+Sorularınız veya önerileriniz için [GitHub Issues](https://github.com/aligncturk/firma-bulma-sistemi/issues) üzerinden iletişime geçebilirsiniz. 
