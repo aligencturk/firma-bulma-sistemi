@@ -3,6 +3,7 @@ const cors = require('cors');
 const compression = require('compression');
 const helmet = require('helmet');
 const path = require('path');
+const fetch = require('node-fetch');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -55,7 +56,13 @@ app.get('/', (req, res) => {
 app.get('/api/places/search', async (req, res) => {
     try {
         const { query, location } = req.query;
-        const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&location=${encodeURIComponent(location)}&key=${process.env.GOOGLE_PLACES_API_KEY}`;
+        const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+        
+        if (!apiKey) {
+            throw new Error('Google Places API anahtarı bulunamadı');
+        }
+        
+        const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&location=${encodeURIComponent(location)}&key=${apiKey}`;
         
         const response = await fetch(searchUrl);
         const data = await response.json();
@@ -63,7 +70,7 @@ app.get('/api/places/search', async (req, res) => {
         res.json(data);
     } catch (error) {
         console.error('Places API Arama Hatası:', error);
-        res.status(500).json({ error: 'Arama yapılırken bir hata oluştu' });
+        res.status(500).json({ error: 'Arama yapılırken bir hata oluştu', message: error.message });
     }
 });
 
@@ -71,7 +78,13 @@ app.get('/api/places/search', async (req, res) => {
 app.get('/api/places/details/:placeId', async (req, res) => {
     try {
         const { placeId } = req.params;
-        const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,formatted_address,formatted_phone_number,website,rating,reviews,photos,opening_hours&key=${process.env.GOOGLE_PLACES_API_KEY}`;
+        const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+        
+        if (!apiKey) {
+            throw new Error('Google Places API anahtarı bulunamadı');
+        }
+        
+        const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,formatted_address,formatted_phone_number,website,rating,reviews,photos,opening_hours&key=${apiKey}`;
         
         const response = await fetch(detailsUrl);
         const data = await response.json();
@@ -79,7 +92,7 @@ app.get('/api/places/details/:placeId', async (req, res) => {
         res.json(data);
     } catch (error) {
         console.error('Places API Detay Hatası:', error);
-        res.status(500).json({ error: 'Firma detayları alınırken bir hata oluştu' });
+        res.status(500).json({ error: 'Firma detayları alınırken bir hata oluştu', message: error.message });
     }
 });
 
