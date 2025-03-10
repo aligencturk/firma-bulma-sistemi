@@ -263,91 +263,71 @@ function addEventListeners() {
         registerForm.addEventListener('submit', handleRegister);
     }
     
-    // Çıkış Butonu
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            // Çıkış yapmadan önce onay iste
-            if (confirm('Çıkış yapmak istediğinize emin misiniz?')) {
-                handleLogout();
-            }
-        });
-    }
-    
     // Şifremi Unuttum Bağlantısı
     const forgotPasswordLink = document.getElementById('forgot-password-link');
     if (forgotPasswordLink) {
         forgotPasswordLink.addEventListener('click', (e) => {
             e.preventDefault();
-            // Şifremi unuttum işlevselliği daha sonra eklenecek
-            alert('Şifremi unuttum özelliği yakında eklenecek');
+            handleForgotPassword();
+        });
+    }
+    
+    // Çıkış Butonu
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', handleLogout);
+    }
+    
+    // Hızlı Arama Formu
+    const quickSearchForm = document.getElementById('quick-search-form');
+    if (quickSearchForm) {
+        quickSearchForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            // Form verilerini al
+            const inputs = quickSearchForm.querySelectorAll('input, select');
+            const formData = {};
+            
+            inputs.forEach(input => {
+                formData[input.id || input.name || 'query'] = input.value;
+            });
+            
+            // Arama sayfasına yönlendir ve form verilerini doldur
+            changeView('search');
+            
+            // Arama formunu doldur
+            if (formData.query) {
+                document.getElementById('business-type').value = formData.query;
+            }
+            
+            if (formData['quick-location']) {
+                document.getElementById('location').value = formData['quick-location'];
+            }
+            
+            // Aramayı başlat
+            const searchForm = document.getElementById('search-form');
+            if (searchForm) {
+                searchForm.dispatchEvent(new Event('submit'));
+            }
         });
     }
     
     // Arama Formu
     const searchForm = document.getElementById('search-form');
     if (searchForm) {
-        searchForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            handleSearch();
-        });
-    }
-    
-    // Hızlı Arama Formu
-    const quickSearchForm = document.getElementById('quick-search-form');
-    if (quickSearchForm) {
-        quickSearchForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            // Kullanıcı oturum durumunu kontrol et
-            const { data: { user } } = await supabase.auth.getUser();
-            
-            if (!user) {
-                // Kullanıcı giriş yapmamışsa uyarı göster ve giriş sayfasına yönlendir
-                showNotification('Arama yapmak için lütfen giriş yapın', 'warning');
-                changeView('login');
-                return;
-            }
-            
-            // Form verilerini al
-            const businessType = quickSearchForm.querySelector('input').value;
-            const location = document.getElementById('quick-location').value;
-            
-            // Form doğrulama
-            if (!businessType || !location) {
-                showNotification('Lütfen firma türü ve konum girin', 'danger');
-                return;
-            }
-            
-            // Arama sayfasına yönlendir
-            changeView('search');
-            
-            // Arama formunu doldur
-            document.getElementById('business-type').value = businessType;
-            document.getElementById('location').value = location;
-            
-            // Aramayı başlat
-            setTimeout(() => {
-                handleSearch();
-            }, 300);
-        });
+        searchForm.addEventListener('submit', handleSearch);
     }
     
     // E-posta Gönderme Butonu
     const sendEmailBtn = document.getElementById('send-email-btn');
     if (sendEmailBtn) {
-        sendEmailBtn.addEventListener('click', () => {
-            // E-posta modalını göster
-            const emailModal = new bootstrap.Modal(document.getElementById('emailModal'));
-            emailModal.show();
-        });
+        sendEmailBtn.addEventListener('click', handleSendEmail);
     }
     
-    // E-posta Gönderme Formu
-    const sendEmailSubmit = document.getElementById('send-email-submit');
-    if (sendEmailSubmit) {
-        sendEmailSubmit.addEventListener('click', handleSendEmail);
+    // WhatsApp Gönderme Butonu
+    const sendWhatsAppBtn = document.getElementById('send-whatsapp-btn');
+    if (sendWhatsAppBtn) {
+        sendWhatsAppBtn.addEventListener('click', handleSendWhatsApp);
     }
     
     // Sonuçları Kaydetme Butonu
@@ -356,33 +336,26 @@ function addEventListeners() {
         saveResultsBtn.addEventListener('click', handleSaveResults);
     }
     
-    console.log('Olay dinleyicileri eklendi');
+    // Filtreleri Uygulama Butonu
+    const applyFiltersBtn = document.getElementById('apply-filters-btn');
+    if (applyFiltersBtn) {
+        applyFiltersBtn.addEventListener('click', () => {
+            const rating = document.getElementById('filter-rating').value;
+            const location = document.getElementById('filter-location').value;
+            
+            const filters = {
+                rating: rating,
+                location: location
+            };
+            
+            filterSearchResults(filters);
+        });
+    }
     
-    // Tümünü Seç Butonu
-    document.addEventListener('click', function(e) {
-        if (e.target.matches('#select-all-btn')) {
-            const container = document.getElementById('search-results');
-            if (container) {
-                const checkboxes = container.querySelectorAll('.form-check-input');
-                const isAllChecked = Array.from(checkboxes).every(cb => cb.checked);
-                
-                checkboxes.forEach(checkbox => {
-                    checkbox.checked = !isAllChecked;
-                });
-                
-                // Buton metnini güncelle
-                e.target.innerHTML = `<i class="bi bi-${!isAllChecked ? 'check-all' : 'x-lg'} me-1"></i> ${!isAllChecked ? 'Seçimi Temizle' : 'Tümünü Seç'}`;
-                
-                // Toplu işlem butonlarını güncelle
-                updateBulkActionButtons();
-            }
-        }
-    });
-    
-    // WhatsApp Butonu
-    document.addEventListener('click', function(e) {
-        if (e.target.matches('#send-whatsapp-btn') || e.target.closest('#send-whatsapp-btn')) {
-            handleSendWhatsApp();
+    // Checkbox değişikliklerini dinle
+    document.addEventListener('change', (e) => {
+        if (e.target.classList.contains('company-checkbox')) {
+            updateBulkActionButtons();
         }
     });
 }
@@ -589,200 +562,6 @@ function displaySearchResults(results, container) {
     }
     
     // Sonuçları göster
-    const resultsContainer = document.createElement('div');
-    resultsContainer.className = 'company-results';
-    
-    validResults.forEach(company => {
-        const row = document.createElement('div');
-        row.className = 'company-row card mb-3 shadow-sm';
-        
-        // Telefon numarasını formatla
-        let phoneDisplay = 'Telefon bilgisi bulunamadı';
-        if (company.formatted_phone_number || company.international_phone_number || company.phone) {
-            const phone = company.formatted_phone_number || company.international_phone_number || company.phone;
-            phoneDisplay = `<a href="tel:${phone.replace(/\s+/g, '')}" class="text-decoration-none">
-                <i class="bi bi-telephone me-2"></i>${phone}
-            </a>`;
-        }
-        
-        // Web sitesini formatla
-        let websiteDisplay = 'Web sitesi bulunamadı';
-        if (company.website) {
-            websiteDisplay = `<a href="${company.website}" target="_blank" class="text-decoration-none">
-                <i class="bi bi-globe me-2"></i>${company.website}
-            </a>`;
-        }
-        
-        // E-posta adresini formatla
-        let emailDisplay = 'E-posta bilgisi bulunamadı';
-        if (company.email) {
-            emailDisplay = `<a href="mailto:${company.email}" class="text-decoration-none">
-                <i class="bi bi-envelope me-2"></i>${company.email}
-            </a>`;
-        }
-        
-        row.innerHTML = `
-            <div class="card-body">
-                <div class="d-flex align-items-center mb-3">
-                    <div class="form-check me-3">
-                        <input type="checkbox" class="form-check-input" value="${company.place_id}">
-                    </div>
-                    <h5 class="card-title mb-0 company-name">${company.name}</h5>
-                </div>
-                
-                <div class="company-details">
-                    <p class="mb-2 company-address">
-                        <i class="bi bi-geo-alt me-2"></i>
-                        ${company.formatted_address || company.vicinity || 'Adres bilgisi bulunamadı'}
-                    </p>
-                    <p class="mb-2 company-phone">${phoneDisplay}</p>
-                    <p class="mb-2 company-website">${websiteDisplay}</p>
-                    <p class="mb-2 company-email">${emailDisplay}</p>
-                </div>
-                
-                <div class="d-flex justify-content-between align-items-center mt-3">
-                    <div class="company-rating">
-                        ${company.rating ? `
-                            <span class="text-warning">
-                                ${'★'.repeat(Math.floor(company.rating))}${company.rating % 1 >= 0.5 ? '½' : ''}
-                            </span>
-                            <span class="text-muted">(${company.user_ratings_total || 0})</span>
-                        ` : 'Değerlendirme yok'}
-                    </div>
-                    <div class="company-actions">
-                        <button class="btn btn-sm btn-outline-primary me-2" onclick="showCompanyDetails('${company.place_id}')">
-                            <i class="bi bi-info-circle me-1"></i>Detaylar
-                        </button>
-                        <button class="btn btn-sm btn-outline-success" onclick="handleSendWhatsApp(['${company.place_id}'])">
-                            <i class="bi bi-whatsapp me-1"></i>WhatsApp
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        resultsContainer.appendChild(row);
-    });
-    
-    container.appendChild(resultsContainer);
-    
-    // Sayfalama ekle
-    if (validResults.length > 10) {
-        const paginationContainer = document.createElement('div');
-        paginationContainer.className = 'pagination-container mt-4';
-        container.appendChild(paginationContainer);
-        
-        const itemsPerPage = 10;
-        let currentPage = 1;
-        
-        function showPage(page) {
-            const start = (page - 1) * itemsPerPage;
-            const end = start + itemsPerPage;
-            
-            const rows = resultsContainer.querySelectorAll('.company-row');
-            rows.forEach((row, index) => {
-                row.style.display = (index >= start && index < end) ? '' : 'none';
-            });
-            
-            updatePagination();
-        }
-        
-        function updatePagination() {
-            const totalPages = Math.ceil(validResults.length / itemsPerPage);
-            
-            let paginationHtml = '<nav><ul class="pagination justify-content-center">';
-            
-            // Önceki sayfa
-            paginationHtml += `
-                <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
-                    <a class="page-link" href="#" data-page="${currentPage - 1}">
-                        <i class="bi bi-chevron-left"></i>
-                    </a>
-                </li>
-            `;
-            
-            // Sayfa numaraları
-            for (let i = 1; i <= totalPages; i++) {
-                paginationHtml += `
-                    <li class="page-item ${currentPage === i ? 'active' : ''}">
-                        <a class="page-link" href="#" data-page="${i}">${i}</a>
-                    </li>
-                `;
-            }
-            
-            // Sonraki sayfa
-            paginationHtml += `
-                <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
-                    <a class="page-link" href="#" data-page="${currentPage + 1}">
-                        <i class="bi bi-chevron-right"></i>
-                    </a>
-                </li>
-            `;
-            
-            paginationHtml += '</ul></nav>';
-            paginationContainer.innerHTML = paginationHtml;
-            
-            // Sayfalama olaylarını ekle
-            paginationContainer.querySelectorAll('.page-link').forEach(link => {
-                link.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    const newPage = parseInt(link.dataset.page);
-                    if (!isNaN(newPage) && newPage > 0 && newPage <= totalPages) {
-                        currentPage = newPage;
-                        showPage(currentPage);
-                    }
-                });
-            });
-        }
-        
-        // İlk sayfayı göster
-        showPage(1);
-    }
-    
-    // Toplu işlem butonlarını güncelle
-    updateBulkActionButtons();
-}
-
-// Arama Sonuçlarını Görüntüle
-function displaySearchResults(results, container) {
-    // Sonuç yoksa bilgi mesajı göster
-    if (!results || results.length === 0) {
-        container.innerHTML = `
-            <div class="text-center py-5">
-                <i class="bi bi-search text-muted mb-3" style="font-size: 3rem;"></i>
-                <p class="text-muted">Arama kriterlerinize uygun sonuç bulunamadı</p>
-            </div>
-        `;
-        return;
-    }
-    
-    // Geçersiz place_id'leri filtrele
-    const validResults = results.filter(company => {
-        if (!company.place_id) {
-            console.warn('Geçersiz firma: place_id yok', company);
-            return false;
-        }
-        
-        return true;
-    });
-    
-    if (validResults.length < results.length) {
-        console.log(`${results.length - validResults.length} geçersiz sonuç filtrelendi`);
-        showNotification(`${validResults.length} geçerli firma bulundu (${results.length - validResults.length} geçersiz sonuç filtrelendi)`, 'info');
-    }
-    
-    // Filtrelenmiş sonuçlar boşsa bilgi mesajı göster
-    if (validResults.length === 0) {
-        container.innerHTML = `
-            <div class="alert alert-warning">
-                <i class="bi bi-exclamation-triangle me-2"></i>
-                Arama sonuçları alındı ancak geçerli firma bulunamadı. Lütfen farklı arama kriterleri deneyin.
-            </div>
-        `;
-        return;
-    }
-    
-    // Sonuçları göster
     container.innerHTML = '';
     
     // Sonuç sayısını göster
@@ -812,29 +591,32 @@ function displaySearchResults(results, container) {
     
     // Toplu işlem butonları
     const bulkActionsContainer = document.createElement('div');
-    bulkActionsContainer.className = 'd-flex justify-content-between align-items-center mb-3';
+    bulkActionsContainer.className = 'd-flex justify-content-between align-items-center mb-4 mt-3 p-3 bg-light rounded shadow-sm';
     bulkActionsContainer.innerHTML = `
         <div>
-            <button class="btn btn-sm btn-outline-primary me-2" id="select-all-btn">
+            <button class="btn btn-outline-primary me-2" id="select-all-btn">
                 <i class="bi bi-check-all me-1"></i> Tümünü Seç
             </button>
-            <button class="btn btn-sm btn-outline-primary me-2" id="deselect-all-btn">
+            <button class="btn btn-outline-primary me-2" id="deselect-all-btn">
                 <i class="bi bi-x-lg me-1"></i> Seçimi Temizle
             </button>
         </div>
         <div>
-            <button class="btn btn-sm btn-outline-success me-2" id="send-whatsapp-btn">
+            <button class="btn btn-success me-2 whatsapp-btn" id="send-whatsapp-btn">
                 <i class="bi bi-whatsapp me-1"></i> WhatsApp
             </button>
-            <button class="btn btn-sm btn-outline-primary me-2" id="send-email-btn">
+            <button class="btn btn-primary me-2 email-btn" id="send-email-btn">
                 <i class="bi bi-envelope me-1"></i> E-posta
             </button>
-            <button class="btn btn-sm btn-outline-primary" id="save-results-btn">
+            <button class="btn btn-outline-primary save-btn" id="save-results-btn">
                 <i class="bi bi-bookmark me-1"></i> Kaydet
             </button>
         </div>
     `;
     container.appendChild(bulkActionsContainer);
+    
+    // Üst kısımdaki butonları aktif et
+    activateTopButtons();
     
     // Sayfalama için değişkenler
     const itemsPerPage = 10; // Her sayfada gösterilecek sonuç sayısı
@@ -866,14 +648,23 @@ function displaySearchResults(results, container) {
         
         // Sonuçları göster
         pageResults.forEach(company => {
+            // E-posta bilgisi yoksa ve website varsa, website'den e-posta oluştur
+            if (!company.email && company.website) {
+                company.email = extractEmailFromWebsite(company.website);
+            }
+            
+            // Firma verilerini temizle ve düzenle
+            const cleanedCompany = cleanCompanyData(company);
+            
             const companyItem = document.createElement('div');
             companyItem.className = 'list-group-item border-0 shadow-sm mb-3 p-0';
+            companyItem.setAttribute('data-id', cleanedCompany.place_id);
             
             // Yıldız derecelendirmesi oluştur
             let starsHtml = '';
-            if (company.rating) {
-                const fullStars = Math.floor(company.rating);
-                const halfStar = company.rating % 1 >= 0.5;
+            if (cleanedCompany.rating) {
+                const fullStars = Math.floor(cleanedCompany.rating);
+                const halfStar = cleanedCompany.rating % 1 >= 0.5;
                 const emptyStars = 5 - fullStars - (halfStar ? 1 : 0);
                 
                 for (let i = 0; i < fullStars; i++) {
@@ -888,13 +679,13 @@ function displaySearchResults(results, container) {
                     starsHtml += '<i class="bi bi-star text-warning"></i>';
                 }
                 
-                starsHtml += `<span class="text-muted ms-1">(${company.user_ratings_total || 0})</span>`;
+                starsHtml += `<span class="text-muted ms-1">(${cleanedCompany.user_ratings_total || 0})</span>`;
             }
             
             // Firma türlerini göster
             let typesHtml = '';
-            if (company.types && company.types.length > 0) {
-                typesHtml = company.types.slice(0, 3).map(type => 
+            if (cleanedCompany.types && cleanedCompany.types.length > 0) {
+                typesHtml = cleanedCompany.types.slice(0, 3).map(type => 
                     `<span class="badge bg-light text-dark me-1">${type.replace(/_/g, ' ')}</span>`
                 ).join('');
             }
@@ -904,15 +695,15 @@ function displaySearchResults(results, container) {
                 <div class="card border-0">
                     <div class="card-header bg-white d-flex align-items-center py-3">
                         <div class="form-check me-2">
-                            <input class="form-check-input" type="checkbox" value="${company.place_id}" id="check-${company.place_id}">
-                            <label class="form-check-label" for="check-${company.place_id}"></label>
+                            <input class="form-check-input" type="checkbox" value="${cleanedCompany.place_id}" id="check-${cleanedCompany.place_id}">
+                            <label class="form-check-label" for="check-${cleanedCompany.place_id}"></label>
                         </div>
-                        <h5 class="card-title mb-0 flex-grow-1">${company.name}</h5>
+                        <h5 class="card-title mb-0 flex-grow-1">${cleanedCompany.name}</h5>
                         <div class="d-flex">
-                            <button class="btn btn-sm btn-outline-primary me-2 view-details-btn" data-place-id="${company.place_id}">
+                            <button class="btn btn-sm btn-outline-primary me-2 view-details-btn" data-place-id="${cleanedCompany.place_id}">
                                 <i class="bi bi-info-circle me-1"></i> Detaylar
                             </button>
-                            <button class="btn btn-sm btn-outline-success save-company-btn" data-place-id="${company.place_id}">
+                            <button class="btn btn-sm btn-outline-success save-company-btn" data-place-id="${cleanedCompany.place_id}">
                                 <i class="bi bi-bookmark me-1"></i> Kaydet
                             </button>
                         </div>
@@ -922,19 +713,40 @@ function displaySearchResults(results, container) {
                             <div class="col-md-8">
                                 <p class="card-text mb-2">
                                     <i class="bi bi-geo-alt text-primary me-2"></i>
-                                    ${company.formatted_address}
+                                    <strong>Adres:</strong> ${cleanedCompany.formatted_address || cleanedCompany.vicinity || '<span class="text-muted">Adres bilgisi bulunamadı</span>'}
                                 </p>
                                 <p class="card-text mb-2">
                                     <i class="bi bi-telephone text-primary me-2"></i>
-                                    ${company.formatted_phone_number || 'Telefon bilgisi bulunamadı'}
+                                    <strong>Telefon:</strong> 
+                                    ${cleanedCompany.formatted_phone_number || cleanedCompany.international_phone_number ? 
+                                        `<span class="text-dark">${cleanedCompany.formatted_phone_number || cleanedCompany.international_phone_number}</span>
+                                        <a href="tel:${(cleanedCompany.formatted_phone_number || cleanedCompany.international_phone_number).replace(/\s+/g, '')}" class="btn btn-sm btn-outline-primary ms-2">
+                                            <i class="bi bi-telephone"></i> Ara
+                                        </a>
+                                        <button class="btn btn-sm btn-outline-success ms-1" onclick="sendWhatsAppFromDetails('${formatPhoneForWhatsApp(cleanedCompany.formatted_phone_number || cleanedCompany.international_phone_number)}', '${cleanedCompany.name.replace(/'/g, "\\'")}')">
+                                            <i class="bi bi-whatsapp"></i> WhatsApp
+                                        </button>` : 
+                                        '<span class="text-muted">Telefon bilgisi bulunamadı</span>'}
                                 </p>
                                 <p class="card-text mb-2">
                                     <i class="bi bi-globe text-primary me-2"></i>
-                                    ${company.website ? `<a href="${company.website}" target="_blank">${company.website}</a>` : 'Web sitesi bulunamadı'}
+                                    <strong>Web Sitesi:</strong> 
+                                    ${cleanedCompany.website ? 
+                                        `<a href="${cleanedCompany.website}" target="_blank" class="text-primary">${cleanedCompany.website}</a>
+                                        <a href="${cleanedCompany.website}" target="_blank" class="btn btn-sm btn-outline-primary ms-2">
+                                            <i class="bi bi-box-arrow-up-right"></i> Ziyaret Et
+                                        </a>` : 
+                                        '<span class="text-muted">Web sitesi bulunamadı</span>'}
                                 </p>
                                 <p class="card-text mb-0">
                                     <i class="bi bi-envelope text-primary me-2"></i>
-                                    ${company.email || 'E-posta bilgisi bulunamadı'}
+                                    <strong>E-posta:</strong> 
+                                    ${cleanedCompany.email ? 
+                                        `<a href="mailto:${cleanedCompany.email}" class="text-primary">${cleanedCompany.email}</a>
+                                        <a href="mailto:${cleanedCompany.email}" class="btn btn-sm btn-outline-primary ms-2">
+                                            <i class="bi bi-envelope"></i> E-posta Gönder
+                                        </a>` : 
+                                        '<span class="text-muted">E-posta bilgisi bulunamadı</span>'}
                                 </p>
                             </div>
                             <div class="col-md-4">
@@ -946,7 +758,7 @@ function displaySearchResults(results, container) {
                                         ${typesHtml}
                                     </div>
                                     <div class="mt-auto">
-                                        <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(company.name)}&query_place_id=${encodeURIComponent(company.place_id)}" 
+                                        <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanedCompany.name)}&query_place_id=${encodeURIComponent(cleanedCompany.place_id)}" 
                                            target="_blank" class="btn btn-sm btn-outline-secondary w-100">
                                             <i class="bi bi-map me-1"></i> Haritada Göster
                                         </a>
@@ -1298,29 +1110,32 @@ function displaySearchResults(results, container) {
     
     // Toplu işlem butonları
     const bulkActionsContainer = document.createElement('div');
-    bulkActionsContainer.className = 'd-flex justify-content-between align-items-center mb-3';
+    bulkActionsContainer.className = 'd-flex justify-content-between align-items-center mb-4 mt-3 p-3 bg-light rounded shadow-sm';
     bulkActionsContainer.innerHTML = `
         <div>
-            <button class="btn btn-sm btn-outline-primary me-2" id="select-all-btn">
+            <button class="btn btn-outline-primary me-2" id="select-all-btn">
                 <i class="bi bi-check-all me-1"></i> Tümünü Seç
             </button>
-            <button class="btn btn-sm btn-outline-primary me-2" id="deselect-all-btn">
+            <button class="btn btn-outline-primary me-2" id="deselect-all-btn">
                 <i class="bi bi-x-lg me-1"></i> Seçimi Temizle
             </button>
         </div>
         <div>
-            <button class="btn btn-sm btn-outline-success me-2" id="send-whatsapp-btn">
+            <button class="btn btn-success me-2 whatsapp-btn" id="send-whatsapp-btn">
                 <i class="bi bi-whatsapp me-1"></i> WhatsApp
             </button>
-            <button class="btn btn-sm btn-outline-primary me-2" id="send-email-btn">
+            <button class="btn btn-primary me-2 email-btn" id="send-email-btn">
                 <i class="bi bi-envelope me-1"></i> E-posta
             </button>
-            <button class="btn btn-sm btn-outline-primary" id="save-results-btn">
+            <button class="btn btn-outline-primary save-btn" id="save-results-btn">
                 <i class="bi bi-bookmark me-1"></i> Kaydet
             </button>
         </div>
     `;
     container.appendChild(bulkActionsContainer);
+    
+    // Üst kısımdaki butonları aktif et
+    activateTopButtons();
     
     // Sayfalama için değişkenler
     const itemsPerPage = 10; // Her sayfada gösterilecek sonuç sayısı
@@ -1352,14 +1167,23 @@ function displaySearchResults(results, container) {
         
         // Sonuçları göster
         pageResults.forEach(company => {
+            // E-posta bilgisi yoksa ve website varsa, website'den e-posta oluştur
+            if (!company.email && company.website) {
+                company.email = extractEmailFromWebsite(company.website);
+            }
+            
+            // Firma verilerini temizle ve düzenle
+            const cleanedCompany = cleanCompanyData(company);
+            
             const companyItem = document.createElement('div');
             companyItem.className = 'list-group-item border-0 shadow-sm mb-3 p-0';
+            companyItem.setAttribute('data-id', cleanedCompany.place_id);
             
             // Yıldız derecelendirmesi oluştur
             let starsHtml = '';
-            if (company.rating) {
-                const fullStars = Math.floor(company.rating);
-                const halfStar = company.rating % 1 >= 0.5;
+            if (cleanedCompany.rating) {
+                const fullStars = Math.floor(cleanedCompany.rating);
+                const halfStar = cleanedCompany.rating % 1 >= 0.5;
                 const emptyStars = 5 - fullStars - (halfStar ? 1 : 0);
                 
                 for (let i = 0; i < fullStars; i++) {
@@ -1374,13 +1198,13 @@ function displaySearchResults(results, container) {
                     starsHtml += '<i class="bi bi-star text-warning"></i>';
                 }
                 
-                starsHtml += `<span class="text-muted ms-1">(${company.user_ratings_total || 0})</span>`;
+                starsHtml += `<span class="text-muted ms-1">(${cleanedCompany.user_ratings_total || 0})</span>`;
             }
             
             // Firma türlerini göster
             let typesHtml = '';
-            if (company.types && company.types.length > 0) {
-                typesHtml = company.types.slice(0, 3).map(type => 
+            if (cleanedCompany.types && cleanedCompany.types.length > 0) {
+                typesHtml = cleanedCompany.types.slice(0, 3).map(type => 
                     `<span class="badge bg-light text-dark me-1">${type.replace(/_/g, ' ')}</span>`
                 ).join('');
             }
@@ -1390,15 +1214,15 @@ function displaySearchResults(results, container) {
                 <div class="card border-0">
                     <div class="card-header bg-white d-flex align-items-center py-3">
                         <div class="form-check me-2">
-                            <input class="form-check-input" type="checkbox" value="${company.place_id}" id="check-${company.place_id}">
-                            <label class="form-check-label" for="check-${company.place_id}"></label>
+                            <input class="form-check-input" type="checkbox" value="${cleanedCompany.place_id}" id="check-${cleanedCompany.place_id}">
+                            <label class="form-check-label" for="check-${cleanedCompany.place_id}"></label>
                         </div>
-                        <h5 class="card-title mb-0 flex-grow-1">${company.name}</h5>
+                        <h5 class="card-title mb-0 flex-grow-1">${cleanedCompany.name}</h5>
                         <div class="d-flex">
-                            <button class="btn btn-sm btn-outline-primary me-2 view-details-btn" data-place-id="${company.place_id}">
+                            <button class="btn btn-sm btn-outline-primary me-2 view-details-btn" data-place-id="${cleanedCompany.place_id}">
                                 <i class="bi bi-info-circle me-1"></i> Detaylar
                             </button>
-                            <button class="btn btn-sm btn-outline-success save-company-btn" data-place-id="${company.place_id}">
+                            <button class="btn btn-sm btn-outline-success save-company-btn" data-place-id="${cleanedCompany.place_id}">
                                 <i class="bi bi-bookmark me-1"></i> Kaydet
                             </button>
                         </div>
@@ -1408,19 +1232,40 @@ function displaySearchResults(results, container) {
                             <div class="col-md-8">
                                 <p class="card-text mb-2">
                                     <i class="bi bi-geo-alt text-primary me-2"></i>
-                                    ${company.formatted_address}
+                                    <strong>Adres:</strong> ${cleanedCompany.formatted_address || cleanedCompany.vicinity || '<span class="text-muted">Adres bilgisi bulunamadı</span>'}
                                 </p>
                                 <p class="card-text mb-2">
                                     <i class="bi bi-telephone text-primary me-2"></i>
-                                    ${company.formatted_phone_number || 'Telefon bilgisi bulunamadı'}
+                                    <strong>Telefon:</strong> 
+                                    ${cleanedCompany.formatted_phone_number || cleanedCompany.international_phone_number ? 
+                                        `<span class="text-dark">${cleanedCompany.formatted_phone_number || cleanedCompany.international_phone_number}</span>
+                                        <a href="tel:${(cleanedCompany.formatted_phone_number || cleanedCompany.international_phone_number).replace(/\s+/g, '')}" class="btn btn-sm btn-outline-primary ms-2">
+                                            <i class="bi bi-telephone"></i> Ara
+                                        </a>
+                                        <button class="btn btn-sm btn-outline-success ms-1" onclick="sendWhatsAppFromDetails('${formatPhoneForWhatsApp(cleanedCompany.formatted_phone_number || cleanedCompany.international_phone_number)}', '${cleanedCompany.name.replace(/'/g, "\\'")}')">
+                                            <i class="bi bi-whatsapp"></i> WhatsApp
+                                        </button>` : 
+                                        '<span class="text-muted">Telefon bilgisi bulunamadı</span>'}
                                 </p>
                                 <p class="card-text mb-2">
                                     <i class="bi bi-globe text-primary me-2"></i>
-                                    ${company.website ? `<a href="${company.website}" target="_blank">${company.website}</a>` : 'Web sitesi bulunamadı'}
+                                    <strong>Web Sitesi:</strong> 
+                                    ${cleanedCompany.website ? 
+                                        `<a href="${cleanedCompany.website}" target="_blank" class="text-primary">${cleanedCompany.website}</a>
+                                        <a href="${cleanedCompany.website}" target="_blank" class="btn btn-sm btn-outline-primary ms-2">
+                                            <i class="bi bi-box-arrow-up-right"></i> Ziyaret Et
+                                        </a>` : 
+                                        '<span class="text-muted">Web sitesi bulunamadı</span>'}
                                 </p>
                                 <p class="card-text mb-0">
                                     <i class="bi bi-envelope text-primary me-2"></i>
-                                    ${company.email || 'E-posta bilgisi bulunamadı'}
+                                    <strong>E-posta:</strong> 
+                                    ${cleanedCompany.email ? 
+                                        `<a href="mailto:${cleanedCompany.email}" class="text-primary">${cleanedCompany.email}</a>
+                                        <a href="mailto:${cleanedCompany.email}" class="btn btn-sm btn-outline-primary ms-2">
+                                            <i class="bi bi-envelope"></i> E-posta Gönder
+                                        </a>` : 
+                                        '<span class="text-muted">E-posta bilgisi bulunamadı</span>'}
                                 </p>
                             </div>
                             <div class="col-md-4">
@@ -1432,7 +1277,7 @@ function displaySearchResults(results, container) {
                                         ${typesHtml}
                                     </div>
                                     <div class="mt-auto">
-                                        <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(company.name)}&query_place_id=${encodeURIComponent(company.place_id)}" 
+                                        <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanedCompany.name)}&query_place_id=${encodeURIComponent(cleanedCompany.place_id)}" 
                                            target="_blank" class="btn btn-sm btn-outline-secondary w-100">
                                             <i class="bi bi-map me-1"></i> Haritada Göster
                                         </a>
@@ -1784,29 +1629,32 @@ function displaySearchResults(results, container) {
     
     // Toplu işlem butonları
     const bulkActionsContainer = document.createElement('div');
-    bulkActionsContainer.className = 'd-flex justify-content-between align-items-center mb-3';
+    bulkActionsContainer.className = 'd-flex justify-content-between align-items-center mb-4 mt-3 p-3 bg-light rounded shadow-sm';
     bulkActionsContainer.innerHTML = `
         <div>
-            <button class="btn btn-sm btn-outline-primary me-2" id="select-all-btn">
+            <button class="btn btn-outline-primary me-2" id="select-all-btn">
                 <i class="bi bi-check-all me-1"></i> Tümünü Seç
             </button>
-            <button class="btn btn-sm btn-outline-primary me-2" id="deselect-all-btn">
+            <button class="btn btn-outline-primary me-2" id="deselect-all-btn">
                 <i class="bi bi-x-lg me-1"></i> Seçimi Temizle
             </button>
         </div>
         <div>
-            <button class="btn btn-sm btn-outline-success me-2" id="send-whatsapp-btn">
+            <button class="btn btn-success me-2 whatsapp-btn" id="send-whatsapp-btn">
                 <i class="bi bi-whatsapp me-1"></i> WhatsApp
             </button>
-            <button class="btn btn-sm btn-outline-primary me-2" id="send-email-btn">
+            <button class="btn btn-primary me-2 email-btn" id="send-email-btn">
                 <i class="bi bi-envelope me-1"></i> E-posta
             </button>
-            <button class="btn btn-sm btn-outline-primary" id="save-results-btn">
+            <button class="btn btn-outline-primary save-btn" id="save-results-btn">
                 <i class="bi bi-bookmark me-1"></i> Kaydet
             </button>
         </div>
     `;
     container.appendChild(bulkActionsContainer);
+    
+    // Üst kısımdaki butonları aktif et
+    activateTopButtons();
     
     // Sayfalama için değişkenler
     const itemsPerPage = 10; // Her sayfada gösterilecek sonuç sayısı
@@ -1838,14 +1686,23 @@ function displaySearchResults(results, container) {
         
         // Sonuçları göster
         pageResults.forEach(company => {
+            // E-posta bilgisi yoksa ve website varsa, website'den e-posta oluştur
+            if (!company.email && company.website) {
+                company.email = extractEmailFromWebsite(company.website);
+            }
+            
+            // Firma verilerini temizle ve düzenle
+            const cleanedCompany = cleanCompanyData(company);
+            
             const companyItem = document.createElement('div');
             companyItem.className = 'list-group-item border-0 shadow-sm mb-3 p-0';
+            companyItem.setAttribute('data-id', cleanedCompany.place_id);
             
             // Yıldız derecelendirmesi oluştur
             let starsHtml = '';
-            if (company.rating) {
-                const fullStars = Math.floor(company.rating);
-                const halfStar = company.rating % 1 >= 0.5;
+            if (cleanedCompany.rating) {
+                const fullStars = Math.floor(cleanedCompany.rating);
+                const halfStar = cleanedCompany.rating % 1 >= 0.5;
                 const emptyStars = 5 - fullStars - (halfStar ? 1 : 0);
                 
                 for (let i = 0; i < fullStars; i++) {
@@ -1860,13 +1717,13 @@ function displaySearchResults(results, container) {
                     starsHtml += '<i class="bi bi-star text-warning"></i>';
                 }
                 
-                starsHtml += `<span class="text-muted ms-1">(${company.user_ratings_total || 0})</span>`;
+                starsHtml += `<span class="text-muted ms-1">(${cleanedCompany.user_ratings_total || 0})</span>`;
             }
             
             // Firma türlerini göster
             let typesHtml = '';
-            if (company.types && company.types.length > 0) {
-                typesHtml = company.types.slice(0, 3).map(type => 
+            if (cleanedCompany.types && cleanedCompany.types.length > 0) {
+                typesHtml = cleanedCompany.types.slice(0, 3).map(type => 
                     `<span class="badge bg-light text-dark me-1">${type.replace(/_/g, ' ')}</span>`
                 ).join('');
             }
@@ -1876,15 +1733,15 @@ function displaySearchResults(results, container) {
                 <div class="card border-0">
                     <div class="card-header bg-white d-flex align-items-center py-3">
                         <div class="form-check me-2">
-                            <input class="form-check-input" type="checkbox" value="${company.place_id}" id="check-${company.place_id}">
-                            <label class="form-check-label" for="check-${company.place_id}"></label>
+                            <input class="form-check-input" type="checkbox" value="${cleanedCompany.place_id}" id="check-${cleanedCompany.place_id}">
+                            <label class="form-check-label" for="check-${cleanedCompany.place_id}"></label>
                         </div>
-                        <h5 class="card-title mb-0 flex-grow-1">${company.name}</h5>
+                        <h5 class="card-title mb-0 flex-grow-1">${cleanedCompany.name}</h5>
                         <div class="d-flex">
-                            <button class="btn btn-sm btn-outline-primary me-2 view-details-btn" data-place-id="${company.place_id}">
+                            <button class="btn btn-sm btn-outline-primary me-2 view-details-btn" data-place-id="${cleanedCompany.place_id}">
                                 <i class="bi bi-info-circle me-1"></i> Detaylar
                             </button>
-                            <button class="btn btn-sm btn-outline-success save-company-btn" data-place-id="${company.place_id}">
+                            <button class="btn btn-sm btn-outline-success save-company-btn" data-place-id="${cleanedCompany.place_id}">
                                 <i class="bi bi-bookmark me-1"></i> Kaydet
                             </button>
                         </div>
@@ -1894,19 +1751,40 @@ function displaySearchResults(results, container) {
                             <div class="col-md-8">
                                 <p class="card-text mb-2">
                                     <i class="bi bi-geo-alt text-primary me-2"></i>
-                                    ${company.formatted_address}
+                                    <strong>Adres:</strong> ${cleanedCompany.formatted_address || cleanedCompany.vicinity || '<span class="text-muted">Adres bilgisi bulunamadı</span>'}
                                 </p>
                                 <p class="card-text mb-2">
                                     <i class="bi bi-telephone text-primary me-2"></i>
-                                    ${company.formatted_phone_number || 'Telefon bilgisi bulunamadı'}
+                                    <strong>Telefon:</strong> 
+                                    ${cleanedCompany.formatted_phone_number || cleanedCompany.international_phone_number ? 
+                                        `<span class="text-dark">${cleanedCompany.formatted_phone_number || cleanedCompany.international_phone_number}</span>
+                                        <a href="tel:${(cleanedCompany.formatted_phone_number || cleanedCompany.international_phone_number).replace(/\s+/g, '')}" class="btn btn-sm btn-outline-primary ms-2">
+                                            <i class="bi bi-telephone"></i> Ara
+                                        </a>
+                                        <button class="btn btn-sm btn-outline-success ms-1" onclick="sendWhatsAppFromDetails('${formatPhoneForWhatsApp(cleanedCompany.formatted_phone_number || cleanedCompany.international_phone_number)}', '${cleanedCompany.name.replace(/'/g, "\\'")}')">
+                                            <i class="bi bi-whatsapp"></i> WhatsApp
+                                        </button>` : 
+                                        '<span class="text-muted">Telefon bilgisi bulunamadı</span>'}
                                 </p>
                                 <p class="card-text mb-2">
                                     <i class="bi bi-globe text-primary me-2"></i>
-                                    ${company.website ? `<a href="${company.website}" target="_blank">${company.website}</a>` : 'Web sitesi bulunamadı'}
+                                    <strong>Web Sitesi:</strong> 
+                                    ${cleanedCompany.website ? 
+                                        `<a href="${cleanedCompany.website}" target="_blank" class="text-primary">${cleanedCompany.website}</a>
+                                        <a href="${cleanedCompany.website}" target="_blank" class="btn btn-sm btn-outline-primary ms-2">
+                                            <i class="bi bi-box-arrow-up-right"></i> Ziyaret Et
+                                        </a>` : 
+                                        '<span class="text-muted">Web sitesi bulunamadı</span>'}
                                 </p>
                                 <p class="card-text mb-0">
                                     <i class="bi bi-envelope text-primary me-2"></i>
-                                    ${company.email || 'E-posta bilgisi bulunamadı'}
+                                    <strong>E-posta:</strong> 
+                                    ${cleanedCompany.email ? 
+                                        `<a href="mailto:${cleanedCompany.email}" class="text-primary">${cleanedCompany.email}</a>
+                                        <a href="mailto:${cleanedCompany.email}" class="btn btn-sm btn-outline-primary ms-2">
+                                            <i class="bi bi-envelope"></i> E-posta Gönder
+                                        </a>` : 
+                                        '<span class="text-muted">E-posta bilgisi bulunamadı</span>'}
                                 </p>
                             </div>
                             <div class="col-md-4">
@@ -1918,7 +1796,7 @@ function displaySearchResults(results, container) {
                                         ${typesHtml}
                                     </div>
                                     <div class="mt-auto">
-                                        <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(company.name)}&query_place_id=${encodeURIComponent(company.place_id)}" 
+                                        <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanedCompany.name)}&query_place_id=${encodeURIComponent(cleanedCompany.place_id)}" 
                                            target="_blank" class="btn btn-sm btn-outline-secondary w-100">
                                             <i class="bi bi-map me-1"></i> Haritada Göster
                                         </a>
@@ -2293,32 +2171,67 @@ function getSelectedCompanies(containerId = 'search-results') {
             }
         }
         
-        // Global sonuçlarda bulunamazsa DOM'dan al
-        const row = checkbox.closest('.company-row');
-        if (row) {
-            const nameElement = row.querySelector('.company-name');
-            const phoneElement = row.querySelector('.company-phone');
-            const addressElement = row.querySelector('.company-address');
+        // Global sonuçlarda bulunamazsa DOM'dan bilgileri çıkar
+        const companyItem = checkbox.closest('.list-group-item');
+        if (companyItem) {
+            const nameElement = companyItem.querySelector('.card-title');
+            const phoneElement = companyItem.querySelector('.bi-telephone')?.closest('p');
+            const addressElement = companyItem.querySelector('.bi-geo-alt')?.closest('p');
+            const websiteElement = companyItem.querySelector('.bi-globe')?.closest('p');
+            const emailElement = companyItem.querySelector('.bi-envelope')?.closest('p');
             
             if (nameElement) {
-                const company = {
-                    place_id: placeId,
-                    name: nameElement.textContent.trim(),
-                    phone: phoneElement ? phoneElement.textContent.trim() : '',
-                    formatted_address: addressElement ? addressElement.textContent.trim() : ''
-                };
+                const name = nameElement.textContent.trim();
                 
-                // Telefon numarasını temizle
-                if (company.phone) {
-                    company.phone = company.phone
-                        .replace('Telefon:', '')
-                        .replace('Telefon bilgisi bulunamadı', '')
-                        .replace(/[\s\S]*?bi-telephone[\s\S]*?me-2[\s\S]*?\>\s*/, '')
-                        .trim();
+                // Telefon bilgisini çıkar
+                let phone = '';
+                if (phoneElement) {
+                    const phoneText = phoneElement.textContent.trim();
+                    if (!phoneText.includes('Telefon bilgisi bulunamadı')) {
+                        // Telefon: kısmını kaldır
+                        phone = phoneText.replace(/Telefon:/, '').trim();
+                        // Ara ve WhatsApp butonlarının metinlerini kaldır
+                        phone = phone.replace(/Ara/, '').replace(/WhatsApp/, '').trim();
+                    }
                 }
                 
-                console.log('Firma DOM\'dan alındı:', company);
-                selectedCompanies.push(company);
+                // Adres bilgisini çıkar
+                let address = '';
+                if (addressElement) {
+                    const addressText = addressElement.textContent.trim();
+                    if (!addressText.includes('Adres bilgisi bulunamadı')) {
+                        address = addressText.replace(/Adres:/, '').trim();
+                    }
+                }
+                
+                // Web sitesi bilgisini çıkar
+                let website = '';
+                if (websiteElement) {
+                    const websiteText = websiteElement.textContent.trim();
+                    if (!websiteText.includes('Web sitesi bulunamadı')) {
+                        website = websiteText.replace(/Web Sitesi:/, '').replace(/Ziyaret Et/, '').trim();
+                    }
+                }
+                
+                // E-posta bilgisini çıkar
+                let email = '';
+                if (emailElement) {
+                    const emailText = emailElement.textContent.trim();
+                    if (!emailText.includes('E-posta bilgisi bulunamadı')) {
+                        email = emailText.replace(/E-posta:/, '').replace(/E-posta Gönder/, '').trim();
+                    }
+                }
+                
+                console.log('DOM\'dan çıkarılan firma bilgileri:', name, phone, address, website, email);
+                
+                selectedCompanies.push({
+                    place_id: placeId,
+                    name: name,
+                    phone: phone,
+                    formatted_address: address,
+                    website: website,
+                    email: email
+                });
             }
         }
     });
@@ -2329,33 +2242,46 @@ function getSelectedCompanies(containerId = 'search-results') {
 
 // WhatsApp Mesajı Gönderme İşlemi
 function handleSendWhatsApp() {
-    console.log('WhatsApp gönderme işlemi başlatılıyor...');
-    
     // Seçili firmaları al
     const selectedCompanies = getSelectedCompanies();
-    console.log('Seçilen firmalar:', selectedCompanies);
     
+    // Firma seçilmemişse uyarı göster
     if (selectedCompanies.length === 0) {
-        showNotification('Lütfen en az bir firma seçin', 'warning');
+        showNotification('Lütfen WhatsApp mesajı göndermek için en az bir firma seçin', 'danger');
         return;
     }
     
-    // WhatsApp modalını oluştur ve göster
-    createWhatsAppModal();
-    
-    // Modal içindeki gönder butonuna tıklanınca
-    const sendButton = document.querySelector('#whatsappModal .send-whatsapp-btn');
-    if (sendButton) {
-        sendButton.addEventListener('click', () => {
-            const messageInput = document.querySelector('#whatsappModal #whatsapp-message');
-            if (messageInput && messageInput.value.trim()) {
-                sendWhatsAppMessage(selectedCompanies, messageInput.value.trim());
-                bootstrap.Modal.getInstance(document.getElementById('whatsappModal')).hide();
-            } else {
-                showNotification('Lütfen bir mesaj yazın', 'warning');
-            }
-        });
+    // WhatsApp modalını oluştur veya göster
+    const whatsappModal = document.getElementById('whatsappModal');
+    if (!whatsappModal) {
+        createWhatsAppModal();
+    } else {
+        const bsWhatsappModal = new bootstrap.Modal(whatsappModal);
+        bsWhatsappModal.show();
     }
+    
+    // Alıcıları güncelle
+    updateWhatsAppRecipients(selectedCompanies);
+}
+
+// Firma detaylarından WhatsApp mesajı gönderme
+function sendWhatsAppFromDetails(phone, companyName) {
+    if (!phone) {
+        showNotification('Bu firma için telefon numarası bulunamadı', 'danger');
+        return;
+    }
+    
+    // Telefon numarasını WhatsApp formatına dönüştür
+    const formattedPhone = formatPhoneForWhatsApp(phone);
+    
+    // Varsayılan mesaj
+    const defaultMessage = `Merhaba ${companyName}, `;
+    
+    // WhatsApp URL'sini oluştur
+    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(defaultMessage)}`;
+    
+    // Yeni sekmede aç
+    window.open(whatsappUrl, '_blank');
 }
 
 // WhatsApp Mesajı Gönderme
@@ -2416,148 +2342,248 @@ async function sendWhatsAppMessage(companies, message) {
 
 // Telefon numarasını WhatsApp için formatla
 function formatPhoneForWhatsApp(phone) {
-    if (!phone) return null;
+    if (!phone) return '';
     
     // Tüm boşlukları, parantezleri, tire ve artı işaretlerini kaldır
     let cleaned = phone.replace(/[\s\(\)\-\+]/g, '');
     
-    // Sadece rakamları al
-    cleaned = cleaned.replace(/[^\d]/g, '');
-    
-    // Geçerli bir numara mı kontrol et
-    if (cleaned.length < 10) {
-        console.warn('Geçersiz telefon numarası (çok kısa):', phone);
-        return null;
-    }
-    
-    // Türkiye numarası mı kontrol et ve formatla
+    // Eğer numara 0 ile başlıyorsa, 0'ı kaldır
     if (cleaned.startsWith('0')) {
-        // Baştaki 0'ı kaldır ve 90 ekle
-        cleaned = '90' + cleaned.substring(1);
-    } else if (cleaned.length === 10) {
-        // 10 haneli numara (5XX XXX XXXX) - Türkiye numarası olarak kabul et
-        cleaned = '90' + cleaned;
-    } else if (cleaned.startsWith('90') && cleaned.length >= 12) {
-        // Zaten 90 ile başlıyor, olduğu gibi bırak
-    } else if (!cleaned.startsWith('90') && cleaned.length >= 10) {
-        // Diğer ülke numaraları için olduğu gibi bırak
-        console.log('Türkiye dışı numara olabilir:', cleaned);
+        cleaned = cleaned.substring(1);
     }
     
-    console.log('Formatlanmış telefon:', cleaned);
+    // Türkiye numarası ise ve 90 ile başlamıyorsa, 90 ekle
+    if (cleaned.length === 10 && !cleaned.startsWith('90')) {
+        cleaned = '90' + cleaned;
+    }
+    
+    // Eğer numara hala 90 ile başlamıyorsa ve 10-11 haneli ise, 90 ekle
+    if (!cleaned.startsWith('90') && (cleaned.length === 10 || cleaned.length === 11)) {
+        cleaned = '90' + cleaned;
+    }
+    
     return cleaned;
 }
 
-// WhatsApp Modal Oluştur
+// WhatsApp Modalını Oluştur
 function createWhatsAppModal() {
-    // Varolan modalı kontrol et
-    let modalElement = document.getElementById('whatsappModal');
-    if (modalElement) {
-        modalElement.remove();
-    }
+    // Mevcut modalı kontrol et
+    let whatsappModal = document.getElementById('whatsappModal');
     
-    // Yeni modal oluştur
-    modalElement = document.createElement('div');
-    modalElement.className = 'modal fade';
-    modalElement.id = 'whatsappModal';
-    modalElement.setAttribute('tabindex', '-1');
-    
-    // Modal içeriği
-    modalElement.innerHTML = `
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">
-                        <i class="bi bi-whatsapp text-success me-2"></i>
-                        WhatsApp Mesajı Gönder
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-4">
-                        <label class="form-label">Mesaj Şablonları</label>
-                        <select class="form-select" id="whatsapp-template">
-                            <option value="">Şablon Seçin</option>
-                            <option value="promotional">Tanıtım Mesajı</option>
-                            <option value="proposal">Teklif Mesajı</option>
-                            <option value="appointment">Randevu Talebi</option>
-                        </select>
+    // Modal yoksa oluştur
+    if (!whatsappModal) {
+        whatsappModal = document.createElement('div');
+        whatsappModal.className = 'modal fade';
+        whatsappModal.id = 'whatsappModal';
+        whatsappModal.tabIndex = '-1';
+        whatsappModal.setAttribute('aria-labelledby', 'whatsappModalLabel');
+        whatsappModal.setAttribute('aria-hidden', 'true');
+        
+        whatsappModal.innerHTML = `
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="whatsappModalLabel">
+                            <i class="bi bi-whatsapp text-success me-2"></i>
+                            WhatsApp Mesajı Gönder
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Mesaj</label>
-                        <textarea class="form-control" id="whatsapp-message" rows="5" 
-                            placeholder="Mesajınızı yazın... Değişkenler için: {firma_adi}, {tarih}"></textarea>
-                        <div class="form-text">
-                            Kullanılabilir değişkenler:
-                            <button type="button" class="btn btn-sm btn-outline-secondary me-1" onclick="insertWhatsAppVariable('{firma_adi}')">
-                                {firma_adi}
-                            </button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary me-1" onclick="insertWhatsAppVariable('{tarih}')">
-                                {tarih}
-                            </button>
-                        </div>
+                    <div class="modal-body">
+                        <form id="whatsapp-form">
+                            <div class="mb-3">
+                                <label class="form-label">Mesaj</label>
+                                <div id="whatsapp-message" style="height: 200px;"></div>
+                                <div class="form-text mt-2">
+                                    <p>Değişkenler:</p>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary me-1" onclick="insertWhatsAppVariable('{firma_adi}')">{firma_adi}</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary me-1" onclick="insertWhatsAppVariable('{adres}')">{adres}</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary me-1" onclick="insertWhatsAppVariable('{telefon}')">{telefon}</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary me-1" onclick="insertWhatsAppVariable('{website}')">{website}</button>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Alıcılar</label>
+                                <div id="whatsapp-recipients" class="border p-2 rounded" style="max-height: 150px; overflow-y: auto;">
+                                    <p class="text-muted">Henüz firma seçilmedi</p>
+                                </div>
+                            </div>
+                        </form>
                     </div>
-                    
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle me-2"></i>
-                        <strong>Bilgi:</strong> Mesajınız her firma için otomatik olarak kişiselleştirilecektir.
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                        <button type="button" class="btn btn-success send-whatsapp-btn">
+                            <i class="bi bi-whatsapp me-1"></i> Gönder
+                        </button>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
-                    <button type="button" class="btn btn-success send-whatsapp-btn">
-                        <i class="bi bi-whatsapp me-1"></i> Gönder
-                    </button>
                 </div>
             </div>
-        </div>
-    `;
-    
-    // Modalı sayfaya ekle
-    document.body.appendChild(modalElement);
-    
-    // Şablon seçimi değiştiğinde
-    const templateSelect = modalElement.querySelector('#whatsapp-template');
-    const messageTextarea = modalElement.querySelector('#whatsapp-message');
-    
-    if (templateSelect && messageTextarea) {
-        templateSelect.addEventListener('change', function() {
-            const templates = {
-                promotional: `Merhaba {firma_adi},\n\nSize ürün ve hizmetlerimizi tanıtmak isteriz. Detaylı bilgi almak ister misiniz?\n\nİyi çalışmalar,`,
-                proposal: `Merhaba {firma_adi},\n\n{tarih} tarihli görüşmemize istinaden size özel teklifimizi paylaşmak isteriz. Müsait olduğunuz bir zaman diliminde detayları konuşabilir miyiz?\n\nİyi çalışmalar,`,
-                appointment: `Merhaba {firma_adi},\n\nSizinle bir görüşme ayarlamak istiyoruz. {tarih} tarihinde müsait misiniz?\n\nİyi çalışmalar,`
-            };
-            
-            messageTextarea.value = templates[this.value] || '';
+        `;
+        
+        document.body.appendChild(whatsappModal);
+        
+        // WhatsApp Quill editörünü başlat
+        const whatsappQuill = new Quill('#whatsapp-message', {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    ['bold', 'italic', 'underline'],
+                    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                    ['clean']
+                ]
+            },
+            placeholder: 'WhatsApp mesajınızı buraya yazın...'
         });
+        
+        // Varsayılan mesaj
+        whatsappQuill.setText('Merhaba {firma_adi}, ');
+        
+        // Gönder butonuna tıklandığında
+        const sendButton = whatsappModal.querySelector('.send-whatsapp-btn');
+        if (sendButton) {
+            sendButton.addEventListener('click', () => {
+                const messageText = whatsappQuill.getText().trim();
+                if (!messageText) {
+                    showNotification('Lütfen bir mesaj yazın', 'warning');
+                    return;
+                }
+                
+                const selectedCompanies = getSelectedCompanies();
+                if (selectedCompanies.length === 0) {
+                    showNotification('Lütfen en az bir firma seçin', 'danger');
+                    return;
+                }
+                
+                sendWhatsAppMessage(selectedCompanies, messageText);
+                bootstrap.Modal.getInstance(whatsappModal).hide();
+            });
+        }
     }
     
     // Modalı göster
-    const modal = new bootstrap.Modal(modalElement);
-    modal.show();
+    const bsWhatsappModal = new bootstrap.Modal(whatsappModal);
+    bsWhatsappModal.show();
     
-    return modalElement;
+    return whatsappModal;
 }
 
-// WhatsApp değişkeni ekle
+// WhatsApp Alıcılarını Güncelle
+function updateWhatsAppRecipients(selectedCompanyIds) {
+    const recipientsContainer = document.getElementById('whatsapp-recipients');
+    if (!recipientsContainer) return;
+    
+    // Seçili firmaları bul
+    const companies = [];
+    selectedCompanyIds.forEach(id => {
+        const companyElement = document.querySelector(`.company-item[data-id="${id}"]`);
+        if (companyElement) {
+            const companyName = companyElement.querySelector('.company-name').textContent;
+            companies.push({ id, name: companyName });
+        }
+    });
+    
+    // Alıcıları göster
+    if (companies.length === 0) {
+        recipientsContainer.innerHTML = '<p class="text-muted">Henüz firma seçilmedi</p>';
+        return;
+    }
+    
+    recipientsContainer.innerHTML = '';
+    companies.forEach(company => {
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-success me-2 mb-2';
+        badge.textContent = company.name;
+        recipientsContainer.appendChild(badge);
+    });
+}
+
+// WhatsApp Değişkeni Ekle
 function insertWhatsAppVariable(variable) {
-    const messageTextarea = document.getElementById('whatsapp-message');
-    if (!messageTextarea) return;
-    
-    const start = messageTextarea.selectionStart;
-    const end = messageTextarea.selectionEnd;
-    const text = messageTextarea.value;
-    const before = text.substring(0, start);
-    const after = text.substring(end);
-    
-    messageTextarea.value = before + variable + after;
-    messageTextarea.focus();
-    messageTextarea.selectionStart = messageTextarea.selectionEnd = start + variable.length;
-    
-    // Değişken eklendiğinde bildirim göster
-    const variableName = variable.replace(/{|}/g, '');
-    showNotification(`"${variableName}" değişkeni eklendi`, 'info');
+    const whatsappQuill = Quill.find(document.getElementById('whatsapp-message'));
+    if (whatsappQuill) {
+        const range = whatsappQuill.getSelection();
+        if (range) {
+            whatsappQuill.insertText(range.index, variable);
+        } else {
+            whatsappQuill.insertText(whatsappQuill.getLength(), variable);
+        }
+    }
+}
+
+// WhatsApp Mesajı Gönder
+async function sendWhatsAppMessage(companyIds, message) {
+    try {
+        // Seçili firmaları kontrol et
+        if (!companyIds || companyIds.length === 0) {
+            showNotification('Lütfen en az bir firma seçin', 'danger');
+            return;
+        }
+        
+        // Mesajı kontrol et
+        if (!message || message.trim() === '') {
+            showNotification('Lütfen bir mesaj yazın', 'warning');
+            return;
+        }
+        
+        // Firmaları bul
+        const companies = [];
+        companyIds.forEach(id => {
+            const companyElement = document.querySelector(`.company-item[data-id="${id}"]`);
+            if (companyElement) {
+                const companyName = companyElement.querySelector('.company-name').textContent;
+                const companyPhone = companyElement.querySelector('.company-contact span:first-child').textContent.replace('Belirtilmemiş', '').trim();
+                const companyAddress = companyElement.querySelector('.company-address').textContent;
+                const companyWebsite = companyElement.querySelector('.company-contact a') ? 
+                    companyElement.querySelector('.company-contact a').href : '';
+                
+                companies.push({
+                    id,
+                    name: companyName,
+                    phone: companyPhone,
+                    address: companyAddress,
+                    website: companyWebsite
+                });
+            }
+        });
+        
+        // Telefon numarası olmayan firmaları filtrele
+        const validCompanies = companies.filter(company => company.phone && company.phone !== '');
+        
+        if (validCompanies.length === 0) {
+            showNotification('Seçilen firmaların hiçbirinde telefon numarası bulunamadı', 'danger');
+            return;
+        }
+        
+        // Telefon numarası olmayan firma sayısı
+        const invalidCount = companies.length - validCompanies.length;
+        if (invalidCount > 0) {
+            showNotification(`${invalidCount} firmada telefon numarası bulunamadı ve atlandı`, 'warning');
+        }
+        
+        // WhatsApp mesajlarını aç
+        validCompanies.forEach(company => {
+            // Değişkenleri değiştir
+            let personalizedMessage = message
+                .replace(/{firma_adi}/g, company.name)
+                .replace(/{adres}/g, company.address)
+                .replace(/{telefon}/g, company.phone)
+                .replace(/{website}/g, company.website);
+            
+            // Telefon numarasını formatla
+            const formattedPhone = formatPhoneForWhatsApp(company.phone);
+            
+            // WhatsApp URL'sini oluştur
+            const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(personalizedMessage)}`;
+            
+            // Yeni sekmede aç
+            window.open(whatsappUrl, '_blank');
+        });
+        
+        showNotification(`${validCompanies.length} firmaya WhatsApp mesajı gönderildi`, 'success');
+    } catch (error) {
+        console.error('WhatsApp mesajı gönderme hatası:', error);
+        showNotification('WhatsApp mesajı gönderilirken bir hata oluştu: ' + error.message, 'danger');
+    }
 }
 
 // Sonuçları Kaydetme İşlemi
@@ -2821,395 +2847,310 @@ function applyFilters(results) {
 
 // Firma Detaylarını Göster
 async function showCompanyDetails(placeId) {
-    // Mevcut yükleme modalını temizle
-    const existingLoadingModal = document.getElementById('loadingModal');
-    if (existingLoadingModal) {
-        const existingModalInstance = bootstrap.Modal.getInstance(existingLoadingModal);
-        if (existingModalInstance) {
-            existingModalInstance.hide();
-        }
-        existingLoadingModal.remove();
-    }
+    // Önceki modalları temizle
+    cleanupModals();
+    
+    // Yükleme modalını göster
+    const loadingModal = createLoadingModal();
+    const bsLoadingModal = new bootstrap.Modal(loadingModal);
+    bsLoadingModal.show();
+    
+    // Zaman aşımı için zamanlayıcı
+    const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('İstek zaman aşımına uğradı. Lütfen tekrar deneyin.')), 15000);
+    });
     
     try {
-        // placeId kontrolü
-        if (!placeId) {
-            console.error('Geçersiz firma ID\'si: undefined veya null');
-            showNotification('Geçersiz firma ID\'si', 'danger');
-            return;
-        }
+        // İşletme detaylarını getir (zaman aşımı ile)
+        const business = await Promise.race([
+            getBusinessDetails(placeId),
+            timeoutPromise
+        ]);
         
-        if (typeof placeId !== 'string') {
-            console.error('Geçersiz firma ID\'si türü:', typeof placeId);
-            showNotification('Geçersiz firma ID\'si türü', 'danger');
-            return;
-        }
+        // Firma verilerini temizle ve düzenle
+        const cleanedBusiness = cleanCompanyData(business);
         
-        if (placeId.trim() === '') {
-            console.error('Boş firma ID\'si');
-            showNotification('Boş firma ID\'si', 'danger');
-            return;
-        }
-        
-        // place_id formatını kontrol et
-        if (!placeId.startsWith('ChIJ') && !placeId.startsWith('Eh')) {
-            console.error('Geçersiz place_id formatı (ChIJ ile başlamıyor):', placeId);
-            showNotification('Geçersiz firma ID formatı', 'danger');
-            return;
-        }
-        
-        console.log('Firma detayları getiriliyor, placeId:', placeId);
-        
-        // Yükleme göstergesi
-        const loadingModal = createLoadingModal();
-        const loadingModalInstance = new bootstrap.Modal(loadingModal);
-        loadingModalInstance.show();
-        
-        // Yükleme modalı için timeout ayarla (30 saniye sonra otomatik kapanacak)
-        const loadingTimeout = setTimeout(() => {
-            if (loadingModalInstance) {
-                loadingModalInstance.hide();
-                showNotification('Firma detayları yüklenirken zaman aşımı oluştu. Lütfen tekrar deneyin.', 'warning');
-            }
-        }, 30000);
-        
+        // Yükleme modalını gizle
         try {
-            // Google Maps API'sinin yüklü olduğundan emin ol
-            if (!window.google || !window.google.maps || !window.google.maps.places) {
-                console.log('Google Maps API henüz yüklenmemiş, yükleniyor...');
-                await loadGoogleMapsAPI();
-                initMap();
+            bsLoadingModal.hide();
+        } catch (error) {
+            console.warn('Yükleme modalı kapatılırken hata:', error);
+        }
+        
+        // Detay modalını oluştur
+        const modalId = 'companyDetailModal';
+        let modal = document.getElementById(modalId);
+        
+        // Modal yoksa oluştur
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.id = modalId;
+            modal.tabIndex = '-1';
+            modal.setAttribute('aria-labelledby', 'companyDetailModalLabel');
+            modal.setAttribute('aria-hidden', 'true');
+            
+            document.body.appendChild(modal);
+        }
+        
+        // Telefon numarası formatla
+        const phoneFormatted = cleanedBusiness.formatted_phone_number || 'Belirtilmemiş';
+        const phoneForWhatsApp = cleanedBusiness.whatsapp_phone || formatPhoneForWhatsApp(cleanedBusiness.formatted_phone_number || cleanedBusiness.international_phone_number || '');
+        
+        // Yıldız gösterimi oluştur
+        let starsHtml = '';
+        const rating = cleanedBusiness.rating || 0;
+        for (let i = 1; i <= 5; i++) {
+            if (i <= Math.floor(rating)) {
+                starsHtml += '<i class="bi bi-star-fill text-warning"></i>';
+            } else if (i - 0.5 <= rating) {
+                starsHtml += '<i class="bi bi-star-half text-warning"></i>';
+            } else {
+                starsHtml += '<i class="bi bi-star text-warning"></i>';
             }
+        }
+        
+        // Çalışma saatleri
+        let hoursHtml = '<p class="text-muted">Çalışma saatleri bilgisi bulunamadı</p>';
+        if (cleanedBusiness.opening_hours && cleanedBusiness.opening_hours.weekday_text) {
+            hoursHtml = '<ul class="list-group list-group-flush">';
+            cleanedBusiness.opening_hours.weekday_text.forEach(day => {
+                hoursHtml += `<li class="list-group-item border-0 px-0 py-1">${day}</li>`;
+            });
+            hoursHtml += '</ul>';
+        }
+        
+        // Fotoğraflar
+        let photosHtml = '';
+        if (cleanedBusiness.photos && cleanedBusiness.photos.length > 0) {
+            photosHtml = `
+                <div id="companyPhotosCarousel" class="carousel slide mb-4" data-bs-ride="carousel">
+                    <div class="carousel-inner rounded">
+            `;
             
-            // Firma detaylarını al
-            const details = await getBusinessDetails(placeId);
-            
-            // Timeout'u temizle
-            clearTimeout(loadingTimeout);
-            
-            if (!details || !details.name) {
-                loadingModalInstance.hide();
-                showNotification('Firma detayları alınamadı', 'danger');
-                return;
-            }
-            
-            // Mevcut detay modalını temizle
-            const existingDetailsModal = document.getElementById('companyDetailsModal');
-            if (existingDetailsModal) {
-                const existingModalInstance = bootstrap.Modal.getInstance(existingDetailsModal);
-                if (existingModalInstance) {
-                    existingModalInstance.hide();
-                }
-                existingDetailsModal.remove();
-            }
-            
-            // Yeni modal oluştur
-            const detailsModal = document.createElement('div');
-            detailsModal.className = 'modal fade';
-            detailsModal.id = 'companyDetailsModal';
-            detailsModal.setAttribute('tabindex', '-1');
-            detailsModal.setAttribute('aria-labelledby', 'companyDetailsModalLabel');
-            detailsModal.setAttribute('aria-hidden', 'true');
-            
-            document.body.appendChild(detailsModal);
-            
-            // Yıldız derecelendirmesi oluştur
-            let starsHtml = '';
-            if (details.rating) {
-                const fullStars = Math.floor(details.rating);
-                const halfStar = details.rating % 1 >= 0.5;
-                const emptyStars = 5 - fullStars - (halfStar ? 1 : 0);
-                
-                for (let i = 0; i < fullStars; i++) {
-                    starsHtml += '<i class="bi bi-star-fill text-warning"></i>';
-                }
-                
-                if (halfStar) {
-                    starsHtml += '<i class="bi bi-star-half text-warning"></i>';
-                }
-                
-                for (let i = 0; i < emptyStars; i++) {
-                    starsHtml += '<i class="bi bi-star text-warning"></i>';
-                }
-                
-                starsHtml += `<span class="text-muted ms-1">(${details.user_ratings_total || 0})</span>`;
-            }
-            
-            // Çalışma saatleri
-            let hoursHtml = '';
-            if (details.opening_hours && details.opening_hours.weekday_text) {
-                hoursHtml = `
-                    <div class="mt-4">
-                        <h5 class="border-bottom pb-2">
-                            <i class="bi bi-clock me-2 text-primary"></i>
-                            Çalışma Saatleri
-                        </h5>
-                        <ul class="list-group list-group-flush">
-                            ${details.opening_hours.weekday_text.map(day => `
-                                <li class="list-group-item border-0 px-0 py-1">
-                                    ${day}
-                                </li>
-                            `).join('')}
-                        </ul>
+            cleanedBusiness.photos.forEach((photo, index) => {
+                photosHtml += `
+                    <div class="carousel-item ${index === 0 ? 'active' : ''}">
+                        <img src="${photo.url}" class="d-block w-100" alt="${cleanedBusiness.name} - Fotoğraf ${index + 1}">
                     </div>
                 `;
-            }
+            });
             
-            // Yorumlar
-            let reviewsHtml = '';
-            if (details.reviews && details.reviews.length > 0) {
-                reviewsHtml = `
-                    <div class="mt-4">
-                        <h5 class="border-bottom pb-2">
-                            <i class="bi bi-chat-left-text me-2 text-primary"></i>
-                            Yorumlar
-                        </h5>
-                        <div class="reviews-container">
-                            ${details.reviews.map(review => `
-                                <div class="review-item card border-0 shadow-sm mb-3">
-                                    <div class="card-body">
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <h6 class="mb-0">${review.author_name || 'Anonim'}</h6>
-                                            <small class="text-muted">${new Date(review.time * 1000).toLocaleDateString('tr-TR')}</small>
-                                        </div>
-                                        <div class="mb-2">
-                                            ${Array(5).fill(0).map((_, i) => 
-                                                i < review.rating 
-                                                    ? '<i class="bi bi-star-fill text-warning"></i>' 
-                                                    : '<i class="bi bi-star text-warning"></i>'
-                                            ).join('')}
-                                        </div>
-                                        <p class="mb-0">${review.text || 'Yorum yok'}</p>
+            photosHtml += `
+                    </div>
+                    <button class="carousel-control-prev" type="button" data-bs-target="#companyPhotosCarousel" data-bs-slide="prev">
+                        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                        <span class="visually-hidden">Önceki</span>
+                    </button>
+                    <button class="carousel-control-next" type="button" data-bs-target="#companyPhotosCarousel" data-bs-slide="next">
+                        <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                        <span class="visually-hidden">Sonraki</span>
+                    </button>
+                </div>
+            `;
+        }
+        
+        // Modal içeriği
+        modal.innerHTML = `
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="companyDetailModalLabel">${cleanedBusiness.name}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+                    </div>
+                    <div class="modal-body company-details">
+                        ${photosHtml}
+                        
+                        <div class="info-section">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div>
+                                    <div class="mb-2">
+                                        ${starsHtml}
+                                        <span class="ms-2 text-muted">${rating} (${cleanedBusiness.user_ratings_total || 0} değerlendirme)</span>
                                     </div>
+                                    <p class="mb-1"><i class="bi bi-geo-alt text-primary me-2"></i>${cleanedBusiness.formatted_address || cleanedBusiness.vicinity || 'Adres belirtilmemiş'}</p>
                                 </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                `;
-            }
-            
-            // Fotoğraflar
-            let photosHtml = '';
-            if (details.photos && details.photos.length > 0) {
-                photosHtml = `
-                    <div class="mt-4">
-                        <h5 class="border-bottom pb-2">
-                            <i class="bi bi-images me-2 text-primary"></i>
-                            Fotoğraflar
-                        </h5>
-                        <div class="row g-2 photos-container">
-                            ${details.photos.map(photo => `
-                                <div class="col-md-4 col-6">
-                                    <a href="${photo.url}" target="_blank" class="photo-item">
-                                        <img src="${photo.url}" class="img-fluid rounded" alt="${details.name}">
+                                <div>
+                                    <a href="${cleanedBusiness.url}" target="_blank" class="btn btn-sm btn-outline-primary mb-2">
+                                        <i class="bi bi-google me-1"></i> Google'da Görüntüle
                                     </a>
                                 </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                `;
-            }
-            
-            // Modal içeriğini oluştur
-            detailsModal.innerHTML = `
-                <div class="modal-dialog modal-lg">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="companyDetailsModalLabel">${details.name}</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="row">
-                                <div class="col-md-8">
-                                    <div class="mb-3">
-                                        <h5 class="border-bottom pb-2">
-                                            <i class="bi bi-info-circle me-2 text-primary"></i>
-                                            Firma Bilgileri
-                                        </h5>
-                                        <p class="mb-2">
-                                            <i class="bi bi-geo-alt text-primary me-2"></i>
-                                            ${details.formatted_address || 'Adres bilgisi bulunamadı'}
-                                        </p>
-                                        <p class="mb-2">
-                                            <i class="bi bi-telephone text-primary me-2"></i>
-                                            ${details.formatted_phone_number || 'Telefon bilgisi bulunamadı'}
-                                        </p>
-                                        <p class="mb-2">
-                                            <i class="bi bi-globe text-primary me-2"></i>
-                                            ${details.website ? `<a href="${details.website}" target="_blank">${details.website}</a>` : 'Web sitesi bulunamadı'}
-                                        </p>
-                                        <p class="mb-0">
-                                            <i class="bi bi-star text-primary me-2"></i>
-                                            ${starsHtml || 'Derecelendirme bilgisi bulunamadı'}
-                                        </p>
-                                    </div>
-                                    
-                                    ${hoursHtml}
-                                    ${reviewsHtml}
-                                    ${photosHtml}
+                            </div>
+                            
+                            <div class="row mt-4">
+                                <div class="col-md-6">
+                                    <h5><i class="bi bi-telephone text-primary me-2"></i>İletişim</h5>
+                                    <p class="mb-1">
+                                        <strong>Telefon:</strong> ${phoneFormatted}
+                                        ${phoneForWhatsApp ? `
+                                        <button class="btn btn-sm btn-success ms-2" onclick="sendWhatsAppFromDetails('${phoneForWhatsApp}', '${cleanedBusiness.name.replace(/'/g, "\\'")}')">
+                                            <i class="bi bi-whatsapp me-1"></i> WhatsApp
+                                        </button>` : ''}
+                                    </p>
+                                    <p class="mb-1">
+                                        <strong>Web Sitesi:</strong> 
+                                        ${cleanedBusiness.website ? `<a href="${cleanedBusiness.website}" target="_blank">${cleanedBusiness.website}</a>` : 'Belirtilmemiş'}
+                                    </p>
+                                    <p class="mb-1">
+                                        <strong>E-posta:</strong> ${cleanedBusiness.email || 'Belirtilmemiş'}
+                                    </p>
                                 </div>
-                                <div class="col-md-4">
-                                    <div class="card border-0 shadow-sm h-100">
-                                        <div class="card-body">
-                                            <h5 class="card-title border-bottom pb-2">
-                                                <i class="bi bi-map me-2 text-primary"></i>
-                                                Haritada Göster
-                                            </h5>
-                                            <a href="${details.url}" target="_blank" class="btn btn-outline-primary w-100 mt-3">
-                                                <i class="bi bi-map me-1"></i> Google Maps'te Aç
-                                            </a>
-                                            
-                                            <h5 class="card-title border-bottom pb-2 mt-4">
-                                                <i class="bi bi-chat-left-text me-2 text-primary"></i>
-                                                Değerlendirme Yap
-                                            </h5>
-                                            <div class="rating-form">
-                                                <div class="rating-stars mb-3">
-                                                    <span class="star" data-rating="1"><i class="bi bi-star"></i></span>
-                                                    <span class="star" data-rating="2"><i class="bi bi-star"></i></span>
-                                                    <span class="star" data-rating="3"><i class="bi bi-star"></i></span>
-                                                    <span class="star" data-rating="4"><i class="bi bi-star"></i></span>
-                                                    <span class="star" data-rating="5"><i class="bi bi-star"></i></span>
-                                                    <span class="ms-2 rating-text">Puan seçin</span>
-                                                </div>
-                                                <div class="mb-3">
-                                                    <textarea class="form-control" id="review-comment" rows="3" placeholder="Yorumunuzu yazın..."></textarea>
-                                                </div>
-                                                <button class="btn btn-primary" id="submit-review-btn" data-place-id="${placeId}">
-                                                    <i class="bi bi-send me-1"></i> Gönder
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
+                                <div class="col-md-6">
+                                    <h5><i class="bi bi-clock text-primary me-2"></i>Çalışma Saatleri</h5>
+                                    ${hoursHtml}
                                 </div>
                             </div>
                         </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kapat</button>
-                            <button type="button" class="btn btn-primary save-company-btn" data-place-id="${placeId}">
-                                <i class="bi bi-bookmark me-1"></i> Kaydet
-                            </button>
+                        
+                        <div class="info-section">
+                            <h5><i class="bi bi-info-circle text-primary me-2"></i>Firma Bilgileri</h5>
+                            <p class="mb-1"><strong>Tür:</strong> ${cleanedBusiness.types ? cleanedBusiness.types.map(type => type.replace(/_/g, ' ')).join(', ') : 'Belirtilmemiş'}</p>
+                            <p class="mb-1"><strong>Fiyat Seviyesi:</strong> ${getPriceLevel(cleanedBusiness.price_level)}</p>
+                            <p class="mb-1"><strong>Durum:</strong> ${getBusinessStatus(cleanedBusiness.business_status)}</p>
+                        </div>
+                        
+                        <div class="info-section">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="mb-0"><i class="bi bi-star text-primary me-2"></i>Değerlendirmeler</h5>
+                                <button class="btn btn-sm btn-outline-primary" id="addReviewBtn">
+                                    <i class="bi bi-plus-circle me-1"></i> Değerlendirme Ekle
+                                </button>
+                            </div>
+                            
+                            <div id="reviewForm" class="card mb-3 d-none">
+                                <div class="card-body">
+                                    <h6 class="card-title">Değerlendirmenizi Yazın</h6>
+                                    <div class="mb-3">
+                                        <label class="form-label">Puanınız</label>
+                                        <div class="rating-stars">
+                                            <i class="bi bi-star star" data-rating="1"></i>
+                                            <i class="bi bi-star star" data-rating="2"></i>
+                                            <i class="bi bi-star star" data-rating="3"></i>
+                                            <i class="bi bi-star star" data-rating="4"></i>
+                                            <i class="bi bi-star star" data-rating="5"></i>
+                                            <span class="rating-text ms-2">0/5</span>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Yorumunuz</label>
+                                        <textarea class="form-control" id="reviewComment" rows="3"></textarea>
+                                    </div>
+                                    <div class="d-flex justify-content-end">
+                                        <button class="btn btn-outline-secondary me-2" id="cancelReviewBtn">İptal</button>
+                                        <button class="btn btn-primary" id="submitReviewBtn" data-place-id="${placeId}">Gönder</button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="reviews-container" id="reviewsContainer">
+                                <div class="text-center py-4">
+                                    <div class="loading-spinner mx-auto"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kapat</button>
+                        <button type="button" class="btn btn-primary" id="saveCompanyBtn" data-place-id="${placeId}">
+                            <i class="bi bi-bookmark me-1"></i> Kaydet
+                        </button>
+                    </div>
                 </div>
-            `;
+            </div>
+        `;
+        
+        // Modal nesnesini oluştur
+        const modalInstance = new bootstrap.Modal(modal);
+        modalInstance.show();
+        
+        // Değerlendirmeleri yükle
+        loadCompanyReviews(placeId);
+        
+        // Değerlendirme formunu göster/gizle
+        const addReviewBtn = document.getElementById('addReviewBtn');
+        const reviewForm = document.getElementById('reviewForm');
+        const cancelReviewBtn = document.getElementById('cancelReviewBtn');
+        
+        if (addReviewBtn && reviewForm && cancelReviewBtn) {
+            addReviewBtn.addEventListener('click', () => {
+                reviewForm.classList.remove('d-none');
+                addReviewBtn.classList.add('d-none');
+                resetStars();
+            });
             
-            // Yükleme modalını kapat
-            loadingModalInstance.hide();
+            cancelReviewBtn.addEventListener('click', () => {
+                reviewForm.classList.add('d-none');
+                addReviewBtn.classList.remove('d-none');
+            });
+        }
+        
+        // Yıldız derecelendirme sistemi
+        const stars = document.querySelectorAll('.rating-stars .star');
+        stars.forEach(star => {
+            star.addEventListener('mouseover', () => {
+                const rating = parseInt(star.getAttribute('data-rating'));
+                highlightStars(rating);
+            });
             
-            // Detay modalını göster
-            const modal = new bootstrap.Modal(detailsModal);
-            modal.show();
-            
-            // Modal kapatıldığında yükleme modalının da kapatıldığından emin ol
-            detailsModal.addEventListener('hidden.bs.modal', function () {
-                // Yükleme modalını kontrol et ve kapat
-                const loadingModalElement = document.getElementById('loadingModal');
-                if (loadingModalElement) {
-                    const loadingModalInstance = bootstrap.Modal.getInstance(loadingModalElement);
-                    if (loadingModalInstance) {
-                        loadingModalInstance.hide();
-                    }
-                    loadingModalElement.remove();
+            star.addEventListener('mouseout', () => {
+                const selectedRating = document.querySelector('.rating-stars').getAttribute('data-selected-rating');
+                if (selectedRating) {
+                    highlightStars(parseInt(selectedRating));
+                } else {
+                    resetStars();
                 }
             });
             
-            // Yıldız derecelendirme işlevselliği
-            const stars = detailsModal.querySelectorAll('.rating-stars .star');
-            stars.forEach(star => {
-                star.addEventListener('mouseover', function() {
-                    const rating = parseInt(this.getAttribute('data-rating'));
-                    highlightStars(rating);
-                });
-                
-                star.addEventListener('mouseout', function() {
-                    resetStars();
-                });
-                
-                star.addEventListener('click', function() {
-                    const rating = parseInt(this.getAttribute('data-rating'));
-                    setRating(rating);
-                });
+            star.addEventListener('click', () => {
+                const rating = parseInt(star.getAttribute('data-rating'));
+                setRating(rating);
             });
-            
-            // Yorum gönderme butonu
-            const submitReviewBtn = detailsModal.querySelector('#submit-review-btn');
-            if (submitReviewBtn) {
-                submitReviewBtn.addEventListener('click', function() {
-                    submitReview(placeId);
-                });
-            }
-            
-            // Firma kaydetme butonu
-            const saveCompanyBtn = detailsModal.querySelector('.save-company-btn');
-            if (saveCompanyBtn) {
-                saveCompanyBtn.addEventListener('click', async function() {
-                    try {
-                        const { data: { user } } = await supabase.auth.getUser();
-                        
-                        if (!user) {
-                            showNotification('Firmayı kaydetmek için giriş yapmalısınız', 'warning');
-                            return;
-                        }
-                        
-                        const result = await saveCompanies([{
-                            place_id: placeId,
-                            name: details.name,
-                            address: details.formatted_address,
-                            phone: details.formatted_phone_number,
-                            website: details.website,
-                            rating: details.rating
-                        }], user.id);
-                        
-                        if (result.success) {
-                            showNotification('Firma başarıyla kaydedildi', 'success');
-                            saveCompanyBtn.disabled = true;
-                            saveCompanyBtn.innerHTML = '<i class="bi bi-bookmark-check me-1"></i> Kaydedildi';
-                        } else {
-                            showNotification('Firma kaydedilemedi: ' + result.error, 'danger');
-                        }
-                    } catch (error) {
-                        console.error('Firma kaydetme hatası:', error);
-                        showNotification('Firma kaydedilemedi', 'danger');
-                    }
-                });
-            }
-        } catch (error) {
-            // Timeout'u temizle
-            clearTimeout(loadingTimeout);
-            
-            console.error('Firma detayları gösterme hatası:', error);
-            showNotification('Firma detayları gösterilemedi: ' + error.message, 'danger');
-            
-            // Yükleme modalını kapat (hata durumunda)
-            loadingModalInstance.hide();
-        }
-    } catch (error) {
-        console.error('Firma detayları gösterme hatası:', error);
-        showNotification('Firma detayları gösterilemedi: ' + error.message, 'danger');
+        });
         
-        // Yükleme modalını kapat (hata durumunda)
-        const loadingModal = document.getElementById('loadingModal');
-        if (loadingModal) {
-            const bsModal = bootstrap.Modal.getInstance(loadingModal);
-            if (bsModal) bsModal.hide();
-            loadingModal.remove();
+        // Değerlendirme gönderme
+        const submitReviewBtn = document.getElementById('submitReviewBtn');
+        if (submitReviewBtn) {
+            submitReviewBtn.addEventListener('click', () => {
+                submitReview(placeId);
+            });
         }
+        
+        // Firmayı kaydetme
+        const saveCompanyBtn = document.getElementById('saveCompanyBtn');
+        if (saveCompanyBtn) {
+            saveCompanyBtn.addEventListener('click', () => {
+                saveCompany(cleanedBusiness);
+            });
+        }
+        
+        // Modal kapatıldığında yükleme göstergesini kaldır
+        modal.addEventListener('hidden.bs.modal', function() {
+            cleanupModals();
+        });
+    } catch (error) {
+        console.error('Firma detayları gösterilirken hata oluştu:', error);
+        
+        // Yükleme modalını gizle
+        try {
+            bsLoadingModal.hide();
+        } catch (modalError) {
+            console.warn('Yükleme modalı kapatılırken hata:', modalError);
+        }
+        
+        // Tüm modalları temizle
+        cleanupModals();
+        
+        // Hata mesajını göster
+        showNotification('Firma detayları yüklenirken bir hata oluştu: ' + error.message, 'danger');
     }
 }
 
 // Yükleme Modalı Oluştur
 function createLoadingModal() {
-    // Mevcut bir modal varsa önce onu kaldır
-    const existingModal = document.getElementById('loadingModal');
-    if (existingModal) {
-        const modalInstance = bootstrap.Modal.getInstance(existingModal);
-        if (modalInstance) {
-            modalInstance.hide();
-        }
-        existingModal.remove();
-    }
+    // Önceki modalları temizle
+    cleanupModals();
     
+    // Yeni modal oluştur
     const modal = document.createElement('div');
     modal.className = 'modal fade';
     modal.id = 'loadingModal';
@@ -3226,12 +3167,34 @@ function createLoadingModal() {
                         <span class="visually-hidden">Yükleniyor...</span>
                     </div>
                     <h5 class="mb-0">Firma detayları yükleniyor...</h5>
+                    <p class="text-muted mt-2 small">Lütfen bekleyin...</p>
                 </div>
             </div>
         </div>
     `;
     
+    // Modalı sayfaya ekle
     document.body.appendChild(modal);
+    
+    // Otomatik temizleme için zamanlayıcı ekle (10 saniye sonra)
+    setTimeout(() => {
+        if (modal && modal.parentNode) {
+            try {
+                const modalInstance = bootstrap.Modal.getInstance(modal);
+                if (modalInstance) {
+                    modalInstance.hide();
+                }
+            } catch (error) {
+                console.warn('Modal instance bulunamadı (timeout):', error);
+            }
+            
+            // Tüm modalları temizle
+            cleanupModals();
+            
+            // Hata mesajını göster
+            showNotification('Firma detayları yüklenirken zaman aşımına uğradı. Lütfen tekrar deneyin.', 'warning');
+        }
+    }, 10000); // 10 saniye
     
     return modal;
 }
@@ -3279,22 +3242,17 @@ async function submitReview(placeId) {
         
         if (!user) {
             showNotification('Yorum yapmak için lütfen giriş yapın', 'warning');
-            
-            // Modalı kapat
-            const modal = bootstrap.Modal.getInstance(document.getElementById('companyDetailsModal'));
-            if (modal) modal.hide();
-            
-            changeView('login');
             return;
         }
         
         // Form verilerini al
-        const rating = selectedRating;
-        const comment = document.getElementById('review-comment').value.trim();
+        const ratingStars = document.querySelector('.rating-stars');
+        const rating = parseInt(ratingStars.getAttribute('data-selected-rating') || '0');
+        const comment = document.getElementById('reviewComment').value.trim();
         
         // Form doğrulama
-        if (rating === 0) {
-            showNotification('Lütfen bir derecelendirme seçin', 'warning');
+        if (!rating || rating < 1 || rating > 5) {
+            showNotification('Lütfen 1-5 arası bir derecelendirme seçin', 'warning');
             return;
         }
         
@@ -3303,296 +3261,247 @@ async function submitReview(placeId) {
             return;
         }
         
+        // Yükleme göstergesi
+        const submitButton = document.getElementById('submitReviewBtn');
+        const originalButtonText = submitButton.innerHTML;
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Gönderiliyor...';
+        
         // Yorumu gönder
         const result = await addCompanyReview(placeId, rating, comment);
+        
+        // Butonu eski haline getir
+        submitButton.disabled = false;
+        submitButton.innerHTML = originalButtonText;
         
         if (result.success) {
             showNotification('Değerlendirmeniz başarıyla eklendi', 'success');
             
-            // Formu sıfırla
+            // Formu sıfırla ve gizle
             resetStars();
-            selectedRating = 0;
-            document.getElementById('review-comment').value = '';
+            document.getElementById('reviewComment').value = '';
             
-            // Modalı kapat
-            const modal = bootstrap.Modal.getInstance(document.getElementById('companyDetailsModal'));
-            if (modal) modal.hide();
+            const reviewForm = document.getElementById('reviewForm');
+            const addReviewBtn = document.getElementById('addReviewBtn');
             
-            // Firma detaylarını yeniden yükle
-            setTimeout(() => {
-                showCompanyDetails(placeId);
-            }, 500);
+            if (reviewForm) reviewForm.classList.add('d-none');
+            if (addReviewBtn) addReviewBtn.classList.remove('d-none');
+            
+            // Yorumları yeniden yükle
+            loadCompanyReviews(placeId);
         } else {
             showNotification(`Değerlendirme eklenemedi: ${result.error}`, 'danger');
         }
     } catch (error) {
         console.error('Yorum gönderme hatası:', error);
-        showNotification('Değerlendirme gönderilirken bir hata oluştu', 'danger');
+        showNotification('Değerlendirme gönderilirken bir hata oluştu: ' + error.message, 'danger');
+        
+        // Butonu eski haline getir
+        const submitButton = document.getElementById('submitReviewBtn');
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.innerHTML = '<i class="bi bi-send me-1"></i> Gönder';
+        }
     }
 }
 
 // Geçici ID'li firmalar için basit detay modalı göster
 function showSimpleCompanyDetails(company) {
-    // Mevcut yükleme modalını temizle
-    const existingLoadingModal = document.getElementById('loadingModal');
-    if (existingLoadingModal) {
-        const existingModalInstance = bootstrap.Modal.getInstance(existingLoadingModal);
-        if (existingModalInstance) {
-            existingModalInstance.hide();
+    // Önceki modalları temizle
+    cleanupModals();
+    
+    // Firma verilerini temizle ve düzenle
+    const cleanedCompany = cleanCompanyData(company);
+    
+    // Yıldız derecelendirmesi oluştur
+    let starsHtml = '';
+    if (cleanedCompany.rating) {
+        const fullStars = Math.floor(cleanedCompany.rating);
+        const halfStar = cleanedCompany.rating % 1 >= 0.5;
+        const emptyStars = 5 - fullStars - (halfStar ? 1 : 0);
+        
+        for (let i = 0; i < fullStars; i++) {
+            starsHtml += '<i class="bi bi-star-fill text-warning"></i>';
         }
-        existingLoadingModal.remove();
+        
+        if (halfStar) {
+            starsHtml += '<i class="bi bi-star-half text-warning"></i>';
+        }
+        
+        for (let i = 0; i < emptyStars; i++) {
+            starsHtml += '<i class="bi bi-star text-warning"></i>';
+        }
+        
+        starsHtml += `<span class="text-muted ms-1">(${cleanedCompany.user_ratings_total || 0})</span>`;
     }
     
-    try {
-        if (!company || !company.name) {
-            showNotification('Firma detayları gösterilemiyor', 'danger');
-            return;
-        }
+    // Modal oluştur
+    const modalId = 'simpleCompanyModal';
+    let modal = document.getElementById(modalId);
+    
+    // Modal yoksa oluştur
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.className = 'modal fade';
+        modal.id = modalId;
+        modal.tabIndex = '-1';
+        modal.setAttribute('aria-labelledby', 'simpleCompanyModalLabel');
+        modal.setAttribute('aria-hidden', 'true');
         
-        // Mevcut detay modalını temizle
-        const existingDetailsModal = document.getElementById('simpleCompanyDetailsModal');
-        if (existingDetailsModal) {
-            const existingModalInstance = bootstrap.Modal.getInstance(existingDetailsModal);
-            if (existingModalInstance) {
-                existingModalInstance.hide();
-            }
-            existingDetailsModal.remove();
-        }
-        
-        // Yeni modal oluştur
-        const detailsModal = document.createElement('div');
-        detailsModal.className = 'modal fade';
-        detailsModal.id = 'simpleCompanyDetailsModal';
-        detailsModal.setAttribute('tabindex', '-1');
-        detailsModal.setAttribute('aria-labelledby', 'simpleCompanyDetailsModalLabel');
-        detailsModal.setAttribute('aria-hidden', 'true');
-        
-        document.body.appendChild(detailsModal);
-        
-        // Yıldız derecelendirmesi oluştur
-        let starsHtml = '';
-        if (company.rating) {
-            const fullStars = Math.floor(company.rating);
-            const halfStar = company.rating % 1 >= 0.5;
-            const emptyStars = 5 - fullStars - (halfStar ? 1 : 0);
-            
-            for (let i = 0; i < fullStars; i++) {
-                starsHtml += '<i class="bi bi-star-fill text-warning"></i>';
-            }
-            
-            if (halfStar) {
-                starsHtml += '<i class="bi bi-star-half text-warning"></i>';
-            }
-            
-            for (let i = 0; i < emptyStars; i++) {
-                starsHtml += '<i class="bi bi-star text-warning"></i>';
-            }
-            
-            starsHtml += `<span class="text-muted ms-1">(${company.user_ratings_total || 0})</span>`;
-        }
-        
-        // Modal içeriğini oluştur
-        detailsModal.innerHTML = `
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="simpleCompanyDetailsModalLabel">${company.name}</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="alert alert-warning mb-4">
-                            <i class="bi bi-exclamation-triangle me-2"></i>
-                            Bu firma için sınırlı bilgiler gösteriliyor. Google Places API'den tam detaylar alınamadı.
+        document.body.appendChild(modal);
+    }
+    
+    // Telefon numarası kontrolü
+    if (!cleanedCompany.formatted_phone_number && cleanedCompany.international_phone_number) {
+        cleanedCompany.formatted_phone_number = cleanedCompany.international_phone_number;
+    }
+    const hasPhone = cleanedCompany.formatted_phone_number || cleanedCompany.international_phone_number || cleanedCompany.phone;
+    const phoneDisplay = hasPhone || '<span class="text-muted">Telefon bilgisi bulunamadı</span>';
+    
+    // Web sitesi kontrolü
+    const hasWebsite = cleanedCompany.website;
+    
+    // E-posta kontrolü
+    if (!cleanedCompany.email && cleanedCompany.website) {
+        cleanedCompany.email = extractEmailFromWebsite(cleanedCompany.website);
+    }
+    const hasEmail = cleanedCompany.email;
+    
+    // Adres bilgisi kontrolü
+    if (!cleanedCompany.formatted_address && cleanedCompany.vicinity) {
+        cleanedCompany.formatted_address = cleanedCompany.vicinity;
+    }
+    const addressDisplay = cleanedCompany.formatted_address || cleanedCompany.vicinity || '<span class="text-muted">Adres bilgisi bulunamadı</span>';
+    
+    // Modal içeriği
+    modal.innerHTML = `
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="simpleCompanyModalLabel">${cleanedCompany.name}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <p class="mb-2">
+                                <i class="bi bi-geo-alt text-primary me-2"></i>
+                                <strong>Adres:</strong> ${addressDisplay}
+                            </p>
+                            <p class="mb-2">
+                                <i class="bi bi-telephone text-primary me-2"></i>
+                                <strong>Telefon:</strong> 
+                                ${hasPhone ? 
+                                    `<span class="text-dark">${hasPhone}</span>
+                                    <a href="tel:${hasPhone.replace(/\s+/g, '')}" class="btn btn-sm btn-outline-primary ms-2">
+                                        <i class="bi bi-telephone"></i> Ara
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-success ms-1" onclick="sendWhatsAppFromDetails('${formatPhoneForWhatsApp(hasPhone)}', '${cleanedCompany.name.replace(/'/g, "\\'")}')">
+                                        <i class="bi bi-whatsapp"></i> WhatsApp
+                                    </button>` : 
+                                    '<span class="text-muted">Telefon bilgisi bulunamadı</span>'}
+                            </p>
+                            <p class="mb-2">
+                                <i class="bi bi-globe text-primary me-2"></i>
+                                <strong>Web Sitesi:</strong> 
+                                ${hasWebsite ? 
+                                    `<a href="${cleanedCompany.website}" target="_blank" class="text-primary">${cleanedCompany.website}</a>
+                                    <a href="${cleanedCompany.website}" target="_blank" class="btn btn-sm btn-outline-primary ms-2">
+                                        <i class="bi bi-box-arrow-up-right"></i> Ziyaret Et
+                                    </a>` : 
+                                    '<span class="text-muted">Web sitesi bulunamadı</span>'}
+                            </p>
+                            <p class="mb-2">
+                                <i class="bi bi-envelope text-primary me-2"></i>
+                                <strong>E-posta:</strong> 
+                                ${hasEmail ? 
+                                    `<a href="mailto:${cleanedCompany.email}" class="text-primary">${cleanedCompany.email}</a>
+                                    <a href="mailto:${cleanedCompany.email}" class="btn btn-sm btn-outline-primary ms-2">
+                                        <i class="bi bi-envelope"></i> E-posta Gönder
+                                    </a>` : 
+                                    '<span class="text-muted">E-posta bilgisi bulunamadı</span>'}
+                            </p>
+                            <p class="mb-2">
+                                <i class="bi bi-star text-primary me-2"></i>
+                                <strong>Değerlendirme:</strong> ${starsHtml || '<span class="text-muted">Değerlendirme bilgisi bulunamadı</span>'}
+                            </p>
                         </div>
-                        
-                        <div class="row">
-                            <div class="col-md-8">
-                                <div class="mb-4">
-                                    <h5 class="border-bottom pb-2">
-                                        <i class="bi bi-info-circle me-2 text-primary"></i>
-                                        Firma Bilgileri
+                        <div class="col-md-4">
+                            <div class="card border-0 shadow-sm h-100">
+                                <div class="card-body">
+                                    <h5 class="card-title border-bottom pb-2">
+                                        <i class="bi bi-map me-2 text-primary"></i>
+                                        Haritada Göster
                                     </h5>
-                                    
-                                    <!-- İletişim Bilgileri -->
-                                    <div class="contact-info">
-                                        <!-- Adres -->
-                                        <div class="info-item mb-3">
-                                            <h6 class="mb-2">
-                                                <i class="bi bi-geo-alt text-primary me-2"></i>
-                                                Adres
-                                            </h6>
-                                            <div class="ps-4">
-                                                <p class="mb-1">${company.formatted_address || 'Adres bilgisi bulunamadı'}</p>
-                                                ${company.formatted_address ? `
-                                                    <a href="https://www.google.com/maps?q=${encodeURIComponent(company.formatted_address)}" 
-                                                       target="_blank" class="btn btn-sm btn-outline-primary mt-2">
-                                                        <i class="bi bi-map me-1"></i> Haritada Göster
-                                                    </a>
-                                                ` : ''}
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Telefon -->
-                                        <div class="info-item mb-3">
-                                            <h6 class="mb-2">
-                                                <i class="bi bi-telephone text-primary me-2"></i>
-                                                Telefon
-                                            </h6>
-                                            <div class="ps-4">
-                                                ${company.formatted_phone_number ? `
-                                                    <p class="mb-1">
-                                                        <a href="tel:${company.formatted_phone_number.replace(/[\s\(\)\-]/g, '')}" class="text-decoration-none">
-                                                            ${company.formatted_phone_number}
-                                                        </a>
-                                                    </p>
-                                                    <div class="btn-group mt-2">
-                                                        <a href="tel:${company.formatted_phone_number.replace(/[\s\(\)\-]/g, '')}" class="btn btn-sm btn-outline-primary">
-                                                            <i class="bi bi-telephone me-1"></i> Ara
-                                                        </a>
-                                                        <a href="https://wa.me/${company.formatted_phone_number.replace(/[\s\(\)\-]/g, '')}" target="_blank" class="btn btn-sm btn-outline-success">
-                                                            <i class="bi bi-whatsapp me-1"></i> WhatsApp
-                                                        </a>
-                                                    </div>
-                                                ` : `
-                                                    <p class="mb-1">Telefon bilgisi bulunamadı</p>
-                                                `}
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- E-posta ve Web Sitesi -->
-                                        <div class="info-item mb-3">
-                                            <h6 class="mb-2">
-                                                <i class="bi bi-globe text-primary me-2"></i>
-                                                İnternet
-                                            </h6>
-                                            <div class="ps-4">
-                                                ${company.website ? `
-                                                    <p class="mb-1">
-                                                        <i class="bi bi-globe2 me-2"></i>
-                                                        <a href="${company.website}" target="_blank" class="text-decoration-none">
-                                                            ${new URL(company.website).hostname}
-                                                        </a>
-                                                    </p>
-                                                ` : ''}
-                                                ${company.email ? `
-                                                    <p class="mb-1">
-                                                        <i class="bi bi-envelope me-2"></i>
-                                                        <a href="mailto:${company.email}" class="text-decoration-none">
-                                                            ${company.email}
-                                                        </a>
-                                                    </p>
-                                                ` : ''}
-                                                ${!company.website && !company.email ? `
-                                                    <p class="mb-1">İnternet bilgisi bulunamadı</p>
-                                                ` : ''}
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Değerlendirme -->
-                                        <div class="info-item mb-3">
-                                            <h6 class="mb-2">
-                                                <i class="bi bi-star text-primary me-2"></i>
-                                                Değerlendirme
-                                            </h6>
-                                            <div class="ps-4">
-                                                <p class="mb-1">
-                                                    ${starsHtml || 'Derecelendirme bilgisi bulunamadı'}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="card border-0 shadow-sm h-100">
-                                    <div class="card-body">
-                                        <h5 class="card-title border-bottom pb-2">
-                                            <i class="bi bi-map me-2 text-primary"></i>
-                                            Haritada Göster
-                                        </h5>
-                                        <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(company.name)}&query_place_id=${encodeURIComponent(company.place_id)}" 
-                                           target="_blank" class="btn btn-outline-primary w-100 mt-3">
-                                            <i class="bi bi-map me-1"></i> Google Maps'te Aç
-                                        </a>
-                                    </div>
+                                    <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanedCompany.name)}&query_place_id=${encodeURIComponent(cleanedCompany.place_id)}" 
+                                       target="_blank" class="btn btn-outline-primary w-100 mt-3">
+                                        <i class="bi bi-map me-1"></i> Google Maps'te Aç
+                                    </a>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kapat</button>
-                        <button type="button" class="btn btn-primary save-company-btn" data-place-id="${company.place_id}">
-                            <i class="bi bi-bookmark me-1"></i> Kaydet
-                        </button>
                     </div>
                 </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kapat</button>
+                    <button type="button" class="btn btn-primary save-company-btn" data-place-id="${cleanedCompany.place_id}">
+                        <i class="bi bi-bookmark me-1"></i> Kaydet
+                    </button>
+                </div>
             </div>
-        `;
-        
-        // Modalı göster
-        const modal = new bootstrap.Modal(detailsModal);
-        modal.show();
-        
-        // Modal kapatıldığında yükleme modalının da kapatıldığından emin ol
-        detailsModal.addEventListener('hidden.bs.modal', function () {
-            // Yükleme modalını kontrol et ve kapat
-            const loadingModalElement = document.getElementById('loadingModal');
-            if (loadingModalElement) {
-                const loadingModalInstance = bootstrap.Modal.getInstance(loadingModalElement);
-                if (loadingModalInstance) {
-                    loadingModalInstance.hide();
+        </div>
+    `;
+    
+    // Modal nesnesini oluştur
+    const modalInstance = new bootstrap.Modal(modal);
+    modalInstance.show();
+    
+    // Modal kapatıldığında yükleme göstergesini kaldır
+    modal.addEventListener('hidden.bs.modal', function() {
+        cleanupModals();
+    });
+    
+    // Kaydet butonuna olay dinleyicisi ekle
+    const saveBtn = modal.querySelector('.save-company-btn');
+    if (saveBtn) {
+        saveBtn.addEventListener('click', async () => {
+            try {
+                // Kullanıcı kontrolü
+                const { data: { user } } = await supabase.auth.getUser();
+                
+                if (!user) {
+                    showNotification('Firmayı kaydetmek için giriş yapmalısınız', 'warning');
+                    return;
                 }
-                loadingModalElement.remove();
+                
+                // Firma bilgilerini hazırla
+                const companyData = {
+                    place_id: cleanedCompany.place_id,
+                    name: cleanedCompany.name,
+                    address: cleanedCompany.formatted_address || cleanedCompany.vicinity || '',
+                    phone: cleanedCompany.formatted_phone_number || cleanedCompany.international_phone_number || cleanedCompany.phone || '',
+                    website: cleanedCompany.website || '',
+                    rating: cleanedCompany.rating || 0,
+                    reviews: cleanedCompany.user_ratings_total || 0
+                };
+                
+                // Firmayı kaydet
+                const result = await saveCompanies([companyData], user.id);
+                
+                if (result.success) {
+                    showNotification('Firma başarıyla kaydedildi', 'success');
+                    saveBtn.disabled = true;
+                    saveBtn.innerHTML = '<i class="bi bi-bookmark-check me-1"></i> Kaydedildi';
+                } else {
+                    showNotification('Firma kaydedilemedi: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                console.error('Firma kaydedilemedi:', error);
+                showNotification('Firma kaydedilemedi: ' + error.message, 'danger');
             }
         });
-        
-        // Kaydet butonuna olay dinleyicisi ekle
-        const saveButton = detailsModal.querySelector('.save-company-btn');
-        if (saveButton) {
-            saveButton.addEventListener('click', async function() {
-                const placeId = this.getAttribute('data-place-id');
-                
-                try {
-                    // Kullanıcı oturum durumunu kontrol et
-                    const { data: { user } } = await supabase.auth.getUser();
-                    
-                    if (!user) {
-                        showNotification('Firma kaydetmek için lütfen giriş yapın', 'warning');
-                        modal.hide();
-                        changeView('login');
-                        return;
-                    }
-                    
-                    // Firmayı kaydet
-                    const result = await saveCompanies([company], user.id);
-                    
-                    if (result.success) {
-                        showNotification('Firma başarıyla kaydedildi', 'success');
-                        modal.hide();
-                    } else {
-                        showNotification(`Firma kaydedilemedi: ${result.error}`, 'danger');
-                    }
-                } catch (error) {
-                    console.error('Firma kaydetme hatası:', error);
-                    showNotification('Firma kaydedilemedi', 'danger');
-                }
-            });
-        }
-    } catch (error) {
-        console.error('Basit firma detayları gösterme hatası:', error);
-        showNotification('Firma detayları gösterilemedi: ' + error.message, 'danger');
-        
-        // Hata durumunda yükleme modalını kapat
-        const loadingModalElement = document.getElementById('loadingModal');
-        if (loadingModalElement) {
-            const loadingModalInstance = bootstrap.Modal.getInstance(loadingModalElement);
-            if (loadingModalInstance) {
-                loadingModalInstance.hide();
-            }
-            loadingModalElement.remove();
-        }
     }
-} 
+}
 
 // Değişiklik: Tümünü Seç ve Seçimi Temizle butonlarının olay dinleyicilerini showPage fonksiyonunun dışına taşıyorum
 // ve sayfa yüklendikten sonra çalışacak şekilde düzenliyorum
@@ -3622,11 +3531,293 @@ function updateBulkActionButtons() {
     }
 }
 
-// İlk sayfayı göster
-showPage(1);
+// Tüm sonuçları global değişkende sakla - Bu satırı da kaldırıyoruz çünkü validResults bu kapsamda tanımlı değil
+// window.allSearchResults = validResults;
 
-// Tüm sonuçları global değişkende sakla
-window.allSearchResults = validResults;
+// Fiyat Seviyesini Metin Olarak Göster
+function getPriceLevel(priceLevel) {
+    switch (priceLevel) {
+        case 0:
+            return 'Ücretsiz';
+        case 1:
+            return 'Ucuz';
+        case 2:
+            return 'Orta';
+        case 3:
+            return 'Pahalı';
+        case 4:
+            return 'Çok Pahalı';
+        default:
+            return 'Belirtilmemiş';
+    }
+}
 
-// Toplu işlem butonlarını güncelle
-setTimeout(updateBulkActionButtons, 100);
+// İşletme Durumunu Metin Olarak Göster
+function getBusinessStatus(status) {
+    switch (status) {
+        case 'OPERATIONAL':
+            return '<span class="badge bg-success">Açık</span>';
+        case 'CLOSED_TEMPORARILY':
+            return '<span class="badge bg-warning">Geçici Olarak Kapalı</span>';
+        case 'CLOSED_PERMANENTLY':
+            return '<span class="badge bg-danger">Kalıcı Olarak Kapalı</span>';
+        default:
+            return '<span class="badge bg-secondary">Durum Belirtilmemiş</span>';
+    }
+}
+
+// Firma Yorumlarını Yükle
+async function loadCompanyReviews(placeId) {
+    try {
+        const reviewsContainer = document.getElementById('reviewsContainer');
+        if (!reviewsContainer) return;
+        
+        // Yükleme göstergesini göster
+        reviewsContainer.innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Yükleniyor...</span>
+                </div>
+                <p class="mt-2 text-muted">Yorumlar yükleniyor...</p>
+            </div>
+        `;
+        
+        // Yorumları getir
+        const reviews = await getCompanyReviews(placeId);
+        
+        // Yorumları göster
+        if (!reviews || reviews.length === 0) {
+            reviewsContainer.innerHTML = `
+                <div class="text-center py-4">
+                    <i class="bi bi-chat-left-text text-muted" style="font-size: 2rem;"></i>
+                    <p class="mt-2 text-muted">Henüz yorum yapılmamış</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Yorumları listele
+        reviewsContainer.innerHTML = '';
+        reviews.forEach(review => {
+            const reviewElement = document.createElement('div');
+            reviewElement.className = 'card mb-3 review-item';
+            
+            // Yıldız gösterimi oluştur
+            let starsHtml = '';
+            for (let i = 1; i <= 5; i++) {
+                if (i <= Math.floor(review.rating)) {
+                    starsHtml += '<i class="bi bi-star-fill text-warning"></i> ';
+                } else if (i - 0.5 <= review.rating) {
+                    starsHtml += '<i class="bi bi-star-half text-warning"></i> ';
+                } else {
+                    starsHtml += '<i class="bi bi-star text-warning"></i> ';
+                }
+            }
+            
+            // Tarih formatla
+            const reviewDate = review.time ? new Date(review.time * 1000).toLocaleDateString('tr-TR') : 'Belirtilmemiş';
+            
+            reviewElement.innerHTML = `
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <h6 class="mb-0">${review.author_name || 'Anonim'}</h6>
+                            <div class="text-muted small">${reviewDate}</div>
+                        </div>
+                        <div class="rating">
+                            ${starsHtml}
+                        </div>
+                    </div>
+                    <p class="card-text">${review.text || 'Yorum yok'}</p>
+                </div>
+            `;
+            
+            reviewsContainer.appendChild(reviewElement);
+        });
+    } catch (error) {
+        console.error('Yorumlar yüklenirken hata oluştu:', error);
+        const reviewsContainer = document.getElementById('reviewsContainer');
+        if (reviewsContainer) {
+            reviewsContainer.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Yorumlar yüklenirken bir hata oluştu: ${error.message}
+                </div>
+            `;
+        }
+    }
+}
+
+// Firmayı Kaydet
+async function saveCompany(business) {
+    try {
+        // Kullanıcı kontrolü
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+            showNotification('Firmayı kaydetmek için giriş yapmalısınız', 'warning');
+            return;
+        }
+        
+        // Firma bilgilerini hazırla
+        const companyData = {
+            place_id: business.place_id,
+            name: business.name,
+            address: business.formatted_address || business.vicinity || '',
+            phone: business.formatted_phone_number || business.international_phone_number || '',
+            website: business.website || '',
+            rating: business.rating || 0,
+            reviews: business.user_ratings_total || 0
+        };
+        
+        // Firmayı kaydet
+        const result = await saveCompanies([companyData], user.id);
+        
+        if (result.success) {
+            showNotification('Firma başarıyla kaydedildi', 'success');
+            
+            // Kaydet butonunu güncelle
+            const saveCompanyBtn = document.getElementById('saveCompanyBtn');
+            if (saveCompanyBtn) {
+                saveCompanyBtn.disabled = true;
+                saveCompanyBtn.innerHTML = '<i class="bi bi-bookmark-check me-1"></i> Kaydedildi';
+            }
+        } else {
+            showNotification('Firma kaydedilemedi: ' + result.error, 'danger');
+        }
+    } catch (error) {
+        console.error('Firma kaydedilemedi:', error);
+        showNotification('Firma kaydedilemedi: ' + error.message, 'danger');
+    }
+}
+
+// E-posta bilgisini website'den çıkar
+function extractEmailFromWebsite(website) {
+    // api.js'deki fonksiyonu çağır
+    try {
+        if (!website) return null;
+        
+        const url = new URL(website);
+        const domain = url.hostname.replace('www.', '');
+        
+        // Yaygın e-posta formatları
+        const possibleEmails = [
+            `info@${domain}`,
+            `contact@${domain}`,
+            `iletisim@${domain}`,
+            `bilgi@${domain}`,
+            `destek@${domain}`,
+            `support@${domain}`
+        ];
+        
+        return possibleEmails[0]; // İlk olasılığı döndür
+    } catch (error) {
+        console.warn('E-posta adresi çıkarılamadı:', error);
+        return null;
+    }
+}
+
+// Sayfa yüklendiğinde çalışacak fonksiyonlar
+document.addEventListener('DOMContentLoaded', function() {
+    // Üst kısımdaki butonları aktif hale getir
+    activateTopButtons();
+    
+    // Diğer başlangıç işlemleri
+    // ... existing code ...
+    
+    // Alt kısımdaki butonlara olay dinleyicileri ekle
+    // setupBottomButtons(); // Alt kısımdaki butonları kaldırdığımız için bu fonksiyonu çağırmıyoruz
+});
+
+// Üst kısımdaki butonları aktif hale getir
+function activateTopButtons() {
+    const topWhatsAppBtn = document.querySelector('button.whatsapp-btn');
+    const topEmailBtn = document.querySelector('button.email-btn');
+    const topSaveBtn = document.querySelector('button.save-btn');
+    
+    if (topWhatsAppBtn) {
+        topWhatsAppBtn.disabled = false;
+        topWhatsAppBtn.addEventListener('click', handleSendWhatsApp);
+    }
+    
+    if (topEmailBtn) {
+        topEmailBtn.disabled = false;
+        topEmailBtn.addEventListener('click', handleSendEmail);
+    }
+    
+    if (topSaveBtn) {
+        topSaveBtn.disabled = false;
+        topSaveBtn.addEventListener('click', handleSaveResults);
+    }
+}
+
+// Firma detayları modalını temizle
+function cleanupModals() {
+    // Tüm modalleri temizle
+    const allModals = document.querySelectorAll('.modal');
+    allModals.forEach(modal => {
+        try {
+            const bsModal = bootstrap.Modal.getInstance(modal);
+            if (bsModal) bsModal.hide();
+        } catch (error) {
+            console.warn('Modal kapatılırken hata:', error);
+        }
+        
+        // Modal elementini kaldır
+        if (modal.parentNode) {
+            modal.parentNode.removeChild(modal);
+        }
+    });
+    
+    // Backdrop'ları temizle
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    backdrops.forEach(backdrop => {
+        if (backdrop.parentNode) {
+            backdrop.parentNode.removeChild(backdrop);
+        }
+    });
+    
+    // Body'den modal-open sınıfını kaldır
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+}
+
+// Alt kısımdaki butonlara olay dinleyicileri ekle
+function setupBottomButtons() {
+    // Alt kısımdaki butonları kaldırdığımız için bu fonksiyonu boşaltıyoruz
+    // Ancak tamamen silmiyoruz çünkü başka yerlerden çağrılabilir
+    console.log("Alt kısımdaki butonlar kaldırıldı");
+}
+
+// Firma verilerini temizle ve düzenle
+function cleanCompanyData(company) {
+    // Kopya oluştur
+    const cleanedCompany = { ...company };
+    
+    // Telefon numarası düzenleme
+    if (cleanedCompany.formatted_phone_number) {
+        cleanedCompany.formatted_phone_number = cleanedCompany.formatted_phone_number.trim();
+    } else if (cleanedCompany.international_phone_number) {
+        cleanedCompany.formatted_phone_number = cleanedCompany.international_phone_number.trim();
+    }
+    
+    // Adres düzenleme
+    if (cleanedCompany.formatted_address) {
+        cleanedCompany.formatted_address = cleanedCompany.formatted_address.trim();
+    } else if (cleanedCompany.vicinity) {
+        cleanedCompany.formatted_address = cleanedCompany.vicinity.trim();
+    }
+    
+    // Web sitesi düzenleme
+    if (cleanedCompany.website) {
+        cleanedCompany.website = cleanedCompany.website.trim();
+    }
+    
+    // E-posta düzenleme
+    if (!cleanedCompany.email && cleanedCompany.website) {
+        cleanedCompany.email = extractEmailFromWebsite(cleanedCompany.website);
+    }
+    
+    return cleanedCompany;
+}

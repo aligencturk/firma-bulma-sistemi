@@ -154,18 +154,23 @@ async function getBusinessDetails(placeId) {
         
         console.log('getBusinessDetails çağrıldı, placeId:', placeId);
         
-        // Map yüklü değilse yükle
-        if (!map) {
-            console.log('Map yüklü değil, yükleniyor...');
-            await loadGoogleMapsAPI();
-            initMap();
-        }
-
         // Önbellekte varsa ve süresi geçmediyse, önbellekten döndür
         const cachedData = apiCache.get(placeId);
         if (cachedData && (Date.now() - cachedData.timestamp) < CACHE_DURATION) {
             console.log('İşletme detayları önbellekten alındı:', placeId);
             return cachedData.data;
+        }
+        
+        // Map yüklü değilse yükle
+        if (!map) {
+            console.log('Map yüklü değil, yükleniyor...');
+            try {
+                await loadGoogleMapsAPI();
+                initMap();
+            } catch (error) {
+                console.error('Google Maps API yüklenemedi:', error);
+                throw new Error('Google Maps API yüklenemedi: ' + error.message);
+            }
         }
 
         // Places Service için container div'i kontrol et
@@ -192,58 +197,91 @@ async function getBusinessDetails(placeId) {
 
         console.log('Places API isteği gönderiliyor:', JSON.stringify(request));
 
-        const result = await new Promise((resolve, reject) => {
-            try {
-                service.getDetails(request, (place, status) => {
-                    console.log('Places API yanıtı:', status);
-                    
-                    if (status === google.maps.places.PlacesServiceStatus.OK) {
-                        resolve(place);
-                    } else {
-                        console.error('Places API hata kodu:', status);
-                        reject(new Error('İşletme detayları alınamadı: ' + status));
-                    }
-                });
-            } catch (error) {
-                console.error('Places API çağrısı başarısız:', error);
-                reject(new Error('Places API çağrısı başarısız: ' + error.message));
-            }
-        });
+        // API çağrısı için zaman aşımı ekle
+        const result = await Promise.race([
+            new Promise((resolve, reject) => {
+                try {
+                    service.getDetails(request, (place, status) => {
+                        console.log('Places API yanıtı:', status);
+                        
+                        if (status === google.maps.places.PlacesServiceStatus.OK) {
+                            resolve(place);
+                        } else {
+                            console.error('Places API hata kodu:', status);
+                            reject(new Error('İşletme detayları alınamadı: ' + status));
+                        }
+                    });
+                } catch (error) {
+                    console.error('Places API çağrısı başarısız:', error);
+                    reject(new Error('Places API çağrısı başarısız: ' + error.message));
+                }
+            }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('API isteği zaman aşımına uğradı')), 8000))
+        ]);
 
         console.log('İşletme detayları alındı:', result.name);
 
         // Fotoğrafları optimize et
-        if (result.photos) {
-            result.photos = result.photos.slice(0, 5).map(photo => ({
-                url: photo.getUrl({ maxWidth: 800, maxHeight: 600 })
-            }));
+        if (result.photos && result.photos.length > 0) {
+            try {
+                result.photos = result.photos.slice(0, 5).map(photo => ({
+                    url: photo.getUrl({ maxWidth: 800, maxHeight: 600 })
+                }));
+            } catch (error) {
+                console.error('Fotoğraflar işlenirken hata:', error);
+                result.photos = [];
+            }
+        } else {
+            result.photos = [];
         }
         
         // E-posta adresini web sitesinden çıkarmaya çalış
         if (result.website) {
-            result.email = extractEmailFromWebsite(result.website);
+            try {
+                result.email = extractEmailFromWebsite(result.website);
+            } catch (error) {
+                console.error('E-posta çıkarılırken hata:', error);
+                result.email = '';
+            }
         }
         
         // Telefon numarasını formatla
         if (result.formatted_phone_number) {
-            result.formatted_phone_number_link = formatPhoneNumberForLink(result.formatted_phone_number);
+            try {
+                result.formatted_phone_number_link = formatPhoneNumberForLink(result.formatted_phone_number);
+                result.whatsapp_phone = formatPhoneForWhatsApp(result.formatted_phone_number);
+            } catch (error) {
+                console.error('Telefon numarası formatlanırken hata:', error);
+            }
         }
         
         // Adres bileşenlerini ayrıştır
         if (result.address_components) {
-            result.parsed_address = parseAddressComponents(result.address_components);
+            try {
+                result.parsed_address = parseAddressComponents(result.address_components);
+            } catch (error) {
+                console.error('Adres bileşenleri ayrıştırılırken hata:', error);
+            }
         }
 
-        // Sonucu önbelleğe al
+        // Sonucu önbelleğe ekle
         apiCache.set(placeId, {
             data: result,
             timestamp: Date.now()
         });
-
+        
         return result;
     } catch (error) {
-        console.error('İşletme detayları alınamadı:', error);
-        throw new Error('İşletme detayları alınamadı: ' + error.message);
+        console.error('İşletme detayları alınırken hata oluştu:', error);
+        
+        // Önbellekte eski veri varsa, hataya rağmen onu döndür
+        const cachedData = apiCache.get(placeId);
+        if (cachedData) {
+            console.log('Hata oluştu, önbellekteki eski veri kullanılıyor:', placeId);
+            return cachedData.data;
+        }
+        
+        throw error;
     }
 }
 
@@ -254,17 +292,31 @@ function extractEmailFromWebsite(website) {
     
     // Alan adından olası e-posta adresi oluştur
     try {
+        if (!website) return null;
+        
         const url = new URL(website);
         const domain = url.hostname.replace('www.', '');
         
+        // Türkçe karakterleri düzelt
+        const normalizedDomain = domain
+            .replace(/ı/g, 'i')
+            .replace(/ğ/g, 'g')
+            .replace(/ü/g, 'u')
+            .replace(/ş/g, 's')
+            .replace(/ö/g, 'o')
+            .replace(/ç/g, 'c')
+            .replace(/İ/g, 'I');
+        
         // Yaygın e-posta formatları
         const possibleEmails = [
-            `info@${domain}`,
-            `contact@${domain}`,
-            `iletisim@${domain}`,
-            `bilgi@${domain}`,
-            `destek@${domain}`,
-            `support@${domain}`
+            `info@${normalizedDomain}`,
+            `iletisim@${normalizedDomain}`,
+            `bilgi@${normalizedDomain}`,
+            `contact@${normalizedDomain}`,
+            `destek@${normalizedDomain}`,
+            `support@${normalizedDomain}`,
+            `merhaba@${normalizedDomain}`,
+            `hello@${normalizedDomain}`
         ];
         
         return possibleEmails[0]; // İlk olasılığı döndür
@@ -449,6 +501,25 @@ async function searchBusinesses(type, location, filters = {}) {
                 result._isTemporaryId = true; // Bu ID'nin geçici olduğunu işaretle
             }
             
+            // Eksik telefon numarası için alternatif alanları kontrol et
+            if (!result.formatted_phone_number && result.international_phone_number) {
+                result.formatted_phone_number = result.international_phone_number;
+            }
+            
+            // Web sitesi varsa e-posta adresi oluştur
+            if (result.website && !result.email) {
+                try {
+                    result.email = extractEmailFromWebsite(result.website);
+                } catch (error) {
+                    console.warn('E-posta adresi oluşturulamadı:', error);
+                }
+            }
+            
+            // Adres bilgisi için alternatif alanları kontrol et
+            if (!result.formatted_address && result.vicinity) {
+                result.formatted_address = result.vicinity;
+            }
+            
             return result;
         });
         
@@ -569,19 +640,67 @@ async function getCompanyRatings(placeId) {
 // Firma Yorumlarını Getir
 async function getCompanyReviews(placeId) {
     try {
+        // Önce Google Places API'den yorumları almayı deneyelim
+        try {
+            const business = await getBusinessDetails(placeId);
+            if (business && business.reviews && business.reviews.length > 0) {
+                console.log('Google Places API\'den yorumlar alındı:', business.reviews.length);
+                return business.reviews;
+            }
+        } catch (error) {
+            console.warn('Google Places API\'den yorumlar alınamadı:', error);
+        }
+        
+        // Supabase'den yorumları alalım
+        console.log('Supabase\'den yorumlar alınıyor...');
         const { data, error } = await supabase
             .from('company_reviews')
-            .select('*, profiles(full_name)')
+            .select('*')  // profiles tablosu ile ilişki kaldırıldı
             .eq('place_id', placeId)
-            .order('created_at', { ascending: false })
-            .limit(3);
+            .order('created_at', { ascending: false });
             
-        if (error) throw error;
+        if (error) {
+            console.error('Supabase yorum getirme hatası:', error);
+            throw error;
+        }
+        
+        if (!data || data.length === 0) {
+            console.log('Supabase\'de yorum bulunamadı');
+            return [];
+        }
+        
+        console.log('Supabase\'den yorumlar alındı:', data.length);
+        
+        // Kullanıcı bilgilerini ayrı bir sorgu ile alalım
+        const userIds = data.map(review => review.user_id).filter(Boolean);
+        let userMap = {};
+        
+        if (userIds.length > 0) {
+            try {
+                const { data: users, error: userError } = await supabase
+                    .from('profiles')
+                    .select('id, full_name')
+                    .in('id', userIds);
+                
+                if (!userError && users) {
+                    userMap = users.reduce((acc, user) => {
+                        acc[user.id] = user.full_name;
+                        return acc;
+                    }, {});
+                }
+            } catch (userError) {
+                console.warn('Kullanıcı bilgileri alınamadı:', userError);
+            }
+        }
+        
+        // Yorumları formatla
         return data.map(review => ({
-            author: review.profiles?.full_name || 'Anonim',
+            id: review.id,
+            author_name: userMap[review.user_id] || review.author_name || 'Anonim',
             rating: review.rating,
-            date: new Date(review.created_at).toLocaleDateString('tr-TR'),
-            comment: review.comment
+            text: review.comment,
+            time: review.created_at ? new Date(review.created_at).getTime() / 1000 : null,
+            user_id: review.user_id
         }));
     } catch (error) {
         console.error('Yorum getirme hatası:', error);
@@ -592,35 +711,49 @@ async function getCompanyReviews(placeId) {
 // Yorum Ekle
 async function addCompanyReview(placeId, rating, comment) {
     try {
+        // Kullanıcı kontrolü
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Yorum eklemek için giriş yapmalısınız');
+        if (!user) {
+            throw new Error('Yorum eklemek için giriş yapmalısınız');
+        }
         
-        // Önce rating ekle
-        const { error: ratingError } = await supabase
-            .from('company_ratings')
-            .upsert([{
-                place_id: placeId,
-                user_id: user.id,
-                rating: rating
-            }]);
+        console.log('Yorum ekleniyor:', { placeId, rating, comment, userId: user.id });
+        
+        // Kullanıcı profil bilgilerini al
+        const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', user.id)
+            .single();
             
-        if (ratingError) throw ratingError;
+        if (profileError && profileError.code !== 'PGRST116') {
+            console.warn('Profil bilgisi alınamadı:', profileError);
+        }
         
-        // Sonra yorum ekle
-        const { error: reviewError } = await supabase
+        const authorName = profileData?.full_name || user.email || 'Kullanıcı';
+        
+        // Yorum ekle
+        const { data, error } = await supabase
             .from('company_reviews')
             .insert([{
                 place_id: placeId,
                 user_id: user.id,
+                author_name: authorName,
                 rating: rating,
-                comment: comment
+                comment: comment,
+                created_at: new Date().toISOString()
             }]);
             
-        if (reviewError) throw reviewError;
+        if (error) {
+            console.error('Yorum ekleme hatası:', error);
+            throw error;
+        }
+        
+        console.log('Yorum başarıyla eklendi');
         
         return {
             success: true,
-            message: 'Değerlendirmeniz başarıyla eklendi'
+            data: data
         };
     } catch (error) {
         console.error('Yorum ekleme hatası:', error);
@@ -634,19 +767,44 @@ async function addCompanyReview(placeId, rating, comment) {
 // Firmaları Kaydet
 async function saveCompanies(companies, userId) {
     try {
+        // Kullanıcı kontrolü
+        if (!userId) {
+            return {
+                success: false,
+                error: 'Kullanıcı kimliği bulunamadı'
+            };
+        }
+        
+        // Firma kontrolü
+        if (!companies || companies.length === 0) {
+            return {
+                success: false,
+                error: 'Kaydedilecek firma bulunamadı'
+            };
+        }
+        
+        // Firmaları hazırla
+        const companyData = companies.map(company => ({
+            place_id: company.place_id,
+            name: company.name,
+            address: company.address || company.formatted_address || company.vicinity || '',
+            website: company.website || '',
+            phone: company.phone || company.formatted_phone_number || '',
+            rating: company.rating || 0,
+            reviews: company.reviews || company.user_ratings_total || 0,
+            user_id: userId,
+            created_at: new Date().toISOString()
+        }));
+        
         // Supabase'e firmaları kaydet
         const { data, error } = await supabase
             .from('saved_companies')
-            .insert(companies.map(company => ({
-                place_id: company.place_id,
-                name: company.name,
-                address: company.formatted_address,
-                website: company.website,
-                phone: company.phone,
-                user_id: userId
-            })));
+            .insert(companyData);
             
-        if (error) throw error;
+        if (error) {
+            console.error('Supabase kayıt hatası:', error);
+            throw error;
+        }
         
         return {
             success: true,
@@ -1106,9 +1264,58 @@ async function loadRecentSearches(user) {
     }
 }
 
-// Fonksiyonları dışa aktar
-module.exports = {
-    // ... existing exports ...
-    sendEmail,
-    sendBulkEmail
-}; 
+// Toplu E-posta Gönder
+async function sendBulkEmail(recipientsList, subject, content, options = {}) {
+    try {
+        console.log('Toplu e-posta gönderiliyor:', recipientsList.length, 'alıcı');
+        
+        // Simüle edilmiş gecikme (gerçek bir API çağrısı gibi davranması için)
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // E-posta içeriğini konsola yazdır (geliştirme amaçlı)
+        console.log('Toplu E-posta Konusu:', subject);
+        console.log('Toplu E-posta İçeriği:', content);
+        console.log('Alıcı Sayısı:', recipientsList.length);
+        
+        if (options.progressCallback && typeof options.progressCallback === 'function') {
+            // İlerleme durumunu bildirmek için callback fonksiyonu
+            for (let i = 0; i < recipientsList.length; i++) {
+                await new Promise(resolve => setTimeout(resolve, 100)); // Her e-posta için kısa bir gecikme
+                options.progressCallback({
+                    current: i + 1,
+                    total: recipientsList.length,
+                    percent: Math.round(((i + 1) / recipientsList.length) * 100)
+                });
+            }
+        }
+        
+        // Başarılı yanıt döndür
+        return {
+            success: true,
+            sentCount: recipientsList.length,
+            message: 'Toplu e-postalar başarıyla gönderildi (simülasyon)'
+        };
+    } catch (error) {
+        console.error('Toplu e-posta gönderme hatası:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+}
+
+// Fonksiyonları dışa aktar - Tarayıcı ortamında module.exports kullanılamaz
+// Bunun yerine window nesnesi üzerinden fonksiyonları global olarak erişilebilir yapıyoruz
+if (typeof window !== 'undefined') {
+    // Tarayıcı ortamı
+    window.apiUtils = {
+        sendEmail,
+        sendBulkEmail
+    };
+} else if (typeof module !== 'undefined' && module.exports) {
+    // Node.js ortamı
+    module.exports = {
+        sendEmail,
+        sendBulkEmail
+    };
+} 

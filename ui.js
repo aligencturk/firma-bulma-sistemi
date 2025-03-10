@@ -28,13 +28,25 @@ function setupSelectAllButtons() {
     if (selectAllBtn) {
         selectAllBtn.addEventListener('click', () => {
             const checkboxes = document.querySelectorAll('#search-results .company-checkbox');
+            
+            // Eğer hiç firma yoksa uyarı göster
+            if (checkboxes.length === 0) {
+                showNotification('Seçilebilecek firma bulunamadı. Lütfen önce bir arama yapın.', 'warning');
+                return;
+            }
+            
             const allChecked = Array.from(checkboxes).every(checkbox => checkbox.checked);
             
             checkboxes.forEach(checkbox => {
                 checkbox.checked = !allChecked;
             });
             
-            selectAllBtn.textContent = allChecked ? 'Tümünü Seç' : 'Seçimi Kaldır';
+            selectAllBtn.innerHTML = allChecked ? 
+                '<i class="bi bi-check-all me-1"></i> Tümünü Seç' : 
+                '<i class="bi bi-x-lg me-1"></i> Seçimi Kaldır';
+                
+            // WhatsApp ve E-posta butonlarını güncelle
+            updateBulkActionButtons();
         });
     }
     
@@ -43,13 +55,22 @@ function setupSelectAllButtons() {
     if (savedSelectAllBtn) {
         savedSelectAllBtn.addEventListener('click', () => {
             const checkboxes = document.querySelectorAll('#saved-companies .company-checkbox');
+            
+            // Eğer hiç firma yoksa uyarı göster
+            if (checkboxes.length === 0) {
+                showNotification('Seçilebilecek kaydedilmiş firma bulunamadı.', 'warning');
+                return;
+            }
+            
             const allChecked = Array.from(checkboxes).every(checkbox => checkbox.checked);
             
             checkboxes.forEach(checkbox => {
                 checkbox.checked = !allChecked;
             });
             
-            savedSelectAllBtn.textContent = allChecked ? 'Tümünü Seç' : 'Seçimi Kaldır';
+            savedSelectAllBtn.innerHTML = allChecked ? 
+                '<i class="bi bi-check-all me-1"></i> Tümünü Seç' : 
+                '<i class="bi bi-x-lg me-1"></i> Seçimi Kaldır';
         });
     }
 }
@@ -290,18 +311,34 @@ function createCompanyCard(company) {
         }
     }
     
+    // Telefon numarası kontrolü
+    const hasPhone = company.formatted_phone_number || company.phone;
+    const phoneDisplay = hasPhone ? (company.formatted_phone_number || company.phone) : 'Telefon belirtilmemiş';
+    
+    // Web sitesi kontrolü
+    const hasWebsite = company.website;
+    const websiteDisplay = hasWebsite ? 
+        `<a href="${company.website}" target="_blank" class="text-primary">${company.website}</a>` : 
+        'Web sitesi belirtilmemiş';
+    
+    // WhatsApp butonu (telefon varsa göster)
+    const whatsappButton = hasPhone ? 
+        `<button class="btn btn-sm btn-success whatsapp-btn" data-phone="${hasPhone}" data-company="${company.name}">
+            <i class="bi bi-whatsapp"></i> WhatsApp
+        </button>` : '';
+    
     col.innerHTML = `
-        <div class="card h-100 company-card shadow-sm hover-effect" data-id="${company.place_id}">
+        <div class="card h-100 company-card shadow-sm hover-effect company-item" data-id="${company.place_id}">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
                         <h5 class="card-title company-name">${company.name}</h5>
                         <p class="card-text company-address text-muted mb-2">
-                            <i class="bi bi-geo-alt"></i> ${company.formatted_address || 'Adres belirtilmemiş'}
+                            <i class="bi bi-geo-alt"></i> ${company.formatted_address || company.vicinity || 'Adres belirtilmemiş'}
                         </p>
                         <div class="company-contact mb-2">
-                            <p class="mb-1"><i class="bi bi-telephone"></i> ${company.phone || 'Telefon belirtilmemiş'}</p>
-                            <p class="mb-1"><i class="bi bi-globe"></i> ${company.website ? `<a href="${company.website}" target="_blank" class="text-primary">${company.website}</a>` : 'Web sitesi belirtilmemiş'}</p>
+                            <p class="mb-1"><i class="bi bi-telephone"></i> ${phoneDisplay}</p>
+                            <p class="mb-1"><i class="bi bi-globe"></i> ${websiteDisplay}</p>
                         </div>
                     </div>
                     <div class="form-check">
@@ -316,7 +353,8 @@ function createCompanyCard(company) {
                     <button class="btn btn-sm btn-outline-primary view-details-btn flex-grow-1" data-place-id="${company.place_id}">
                         <i class="bi bi-info-circle"></i> Detaylar
                     </button>
-                    <button class="btn btn-sm btn-outline-success save-company-btn flex-grow-1" data-place-id="${company.place_id}">
+                    ${whatsappButton}
+                    <button class="btn btn-sm btn-outline-success save-company-btn" data-place-id="${company.place_id}">
                         <i class="bi bi-bookmark"></i> Kaydet
                     </button>
                 </div>
@@ -326,28 +364,52 @@ function createCompanyCard(company) {
     
     // Detay butonu olayı
     const detailBtn = col.querySelector('.view-details-btn');
-    detailBtn.addEventListener('click', async () => {
-        try {
-            const details = await getBusinessDetails(company.place_id);
-            displayBusinessDetails(details);
-        } catch (error) {
-            console.error('Firma detayları alınamadı:', error);
-            showNotification('Firma detayları alınamadı: ' + error.message, 'danger');
-        }
+    detailBtn.addEventListener('click', () => {
+        showCompanyDetails(company.place_id);
     });
+    
+    // WhatsApp butonu olayı
+    const whatsappBtn = col.querySelector('.whatsapp-btn');
+    if (whatsappBtn) {
+        whatsappBtn.addEventListener('click', () => {
+            const phone = whatsappBtn.getAttribute('data-phone');
+            const companyName = whatsappBtn.getAttribute('data-company');
+            sendWhatsAppFromDetails(phone, companyName);
+        });
+    }
     
     // Kaydet butonu olayı
     const saveBtn = col.querySelector('.save-company-btn');
     saveBtn.addEventListener('click', async () => {
         try {
-            const user = firebase.auth().currentUser;
+            // Kullanıcı kontrolü
+            const { data: { user } } = await supabase.auth.getUser();
             if (!user) {
                 showNotification('Firma kaydetmek için giriş yapmalısınız', 'warning');
                 return;
             }
             
-            await saveCompanies([company], user.uid);
-            showNotification('Firma başarıyla kaydedildi', 'success');
+            // Firma bilgilerini hazırla
+            const companyData = {
+                place_id: company.place_id,
+                name: company.name,
+                address: company.formatted_address || company.vicinity || '',
+                phone: company.formatted_phone_number || company.phone || '',
+                website: company.website || '',
+                rating: company.rating || 0,
+                reviews: company.user_ratings_total || 0
+            };
+            
+            // Firmayı kaydet
+            const result = await saveCompanies([companyData], user.id);
+            
+            if (result.success) {
+                showNotification('Firma başarıyla kaydedildi', 'success');
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<i class="bi bi-bookmark-check"></i> Kaydedildi';
+            } else {
+                showNotification('Firma kaydedilemedi: ' + result.error, 'danger');
+            }
         } catch (error) {
             console.error('Firma kaydedilemedi:', error);
             showNotification('Firma kaydedilemedi: ' + error.message, 'danger');
@@ -916,5 +978,31 @@ async function handleEmailSend() {
         const sendButton = document.getElementById('send-email-submit');
         sendButton.disabled = false;
         sendButton.textContent = 'Gönder';
+    }
+}
+
+// Toplu İşlem Butonlarını Güncelle
+function updateBulkActionButtons() {
+    const sendEmailBtn = document.getElementById('send-email-btn');
+    const sendWhatsAppBtn = document.getElementById('send-whatsapp-btn');
+    const saveResultsBtn = document.getElementById('save-results-btn');
+    
+    // Seçili firma sayısını al
+    const selectedCount = document.querySelectorAll('#search-results .company-checkbox:checked').length;
+    
+    // Butonları güncelle
+    if (sendEmailBtn) {
+        sendEmailBtn.disabled = selectedCount === 0;
+        sendEmailBtn.title = selectedCount === 0 ? 'Lütfen en az bir firma seçin' : `${selectedCount} firmaya e-posta gönder`;
+    }
+    
+    if (sendWhatsAppBtn) {
+        sendWhatsAppBtn.disabled = selectedCount === 0;
+        sendWhatsAppBtn.title = selectedCount === 0 ? 'Lütfen en az bir firma seçin' : `${selectedCount} firmaya WhatsApp mesajı gönder`;
+    }
+    
+    if (saveResultsBtn) {
+        saveResultsBtn.disabled = selectedCount === 0;
+        saveResultsBtn.title = selectedCount === 0 ? 'Lütfen en az bir firma seçin' : `${selectedCount} firmayı kaydet`;
     }
 } 
